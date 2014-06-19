@@ -3,6 +3,7 @@ import os
 import random
 
 from collections import defaultdict, namedtuple
+from functools import partial
 from itertools import combinations
 
 import numpy as np 
@@ -47,15 +48,16 @@ def analyzer(words, n=4):
 
 class Verification(base.BaseEstimator):
     def __init__(self, n_features=100, random_prop=0.5,
-                 sigma=0.4, imposters=2, iterations=100):
+                 sigma=0.4, n_char=4, imposters=2, iterations=100):
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
         self.sigma = sigma
+        self.n_char = 4
         self.imposters = imposters
         self.iterations = iterations
 
     def fit(self, dataset):
-        self.vectorizer = CountVectorizer(analyzer=analyzer)
+        self.vectorizer = CountVectorizer(analyzer=partial(analyzer, n=self.n_char))
         texts, titles, authors = dataset
         X = self.vectorizer.fit_transform(texts)
         features = np.asarray(X.sum(0).argsort())[0][-self.n_features:]
@@ -89,7 +91,7 @@ class Verification(base.BaseEstimator):
                     closest.append(max(distances, key=lambda i: i[1])[0])
                     sigma = closest.count("target") / float(len(closest))
                     sigmas[k] = sigma
-                mean_sigma = np.mean(sigmas)
+                mean_sigma = sigmas.mean()
                 print "sigma for text: ", mean_sigma
                 same_author = True if mean_sigma >= self.sigma else False
                 print "%s (by %s) same author as %s (by %s) = %s" % (
