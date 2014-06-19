@@ -80,7 +80,7 @@ class Verification(base.BaseEstimator):
                 closest = []
                 sigmas = np.zeros(self.iterations)
                 for k in range(self.iterations):
-                    indices = random.sample(np.arange(X.shape[1]), self.rand_features)
+                    indices = np.random.randint(0, X.shape[1], size=self.rand_features)
                     truncated_X = X[:,indices]
                     distances = []
                     for idx, candidate in enumerate(imposters):
@@ -98,7 +98,7 @@ class Verification(base.BaseEstimator):
     verify = predict
 
 if __name__ == '__main__':
-    verification = Verification()
+    verification = Verification(imposters=10, n_features=1000)
     dataset = prepare_corpus('../data/english')
     verification.fit(dataset)
     verification.verify(dataset)
