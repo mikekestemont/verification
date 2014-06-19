@@ -1,6 +1,8 @@
 import glob
+import logging
 import os
 import random
+import unidecode
 import sys
 
 from collections import defaultdict, namedtuple
@@ -18,7 +20,18 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics import precision_score, recall_score
 
+
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+
 Dataset = namedtuple('Dataset', ['texts', 'titles', 'authors'])
+
+def dummy_author():
+    i = 0
+    while True:
+        yield str(i)
+        i += 1
+
+DUMMY_AUTHORS = dummy_author()
 
 @jit('f8(f8[:],f8[:])')
 def min_max(a, b):
@@ -32,7 +45,10 @@ def min_max(a, b):
 def prepare_corpus(dirname, cutoff=5000):
     authors, titles, texts = [], [], []
     for filename in glob.glob(dirname + "/*.txt"):
-        author, title = filename.replace(".txt", "").split('_')
+        if '_' in filename:
+            author, title = filename.replace(".txt", "").split('_')
+        else:
+            author, title = DUMMY_AUTHORS.next(), unidecode.unidecode(filename.split('/')[-1])
         authors.append(author)
         titles.append(title)
         with open(filename) as infile:
@@ -61,6 +77,7 @@ class Verification(base.BaseEstimator):
         self.iterations = iterations
 
     def fit(self, dataset):
+        logging.info("Fitting model.")
         self.vectorizer = CountVectorizer(analyzer=partial(analyzer, n=self.n_char))
         texts, titles, authors = dataset
         X = self.vectorizer.fit_transform(texts)
@@ -73,6 +90,7 @@ class Verification(base.BaseEstimator):
         texts, titles, authors = dataset
         scores = np.zeros((len(titles), len(titles)))
         for i, j in combinations(range(len(titles)), 2):
+            logging.info("Predicting scores for %s - %s" % (authors[i], authors[j]))
             title_i, author_i = titles[i], authors[i]
             title_j, author_j = titles[j], authors[j]
             similarities = []
@@ -117,7 +135,7 @@ def precision_recall_curve(scores, dataset):
 
 
 if __name__ == '__main__':
-    verification = Verification(imposters=5, n_features=10000)
+    verification = Verification(imposters=10, n_features=30000)
     print verification
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
