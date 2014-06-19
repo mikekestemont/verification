@@ -1,6 +1,7 @@
 import glob
 import os
 import random
+import sys
 
 from collections import defaultdict, namedtuple
 from functools import partial
@@ -27,7 +28,6 @@ def min_max(a, b):
 def prepare_corpus(dirname, cutoff=5000):
     authors, titles, texts = [], [], []
     for filename in glob.glob(dirname + "/*.txt"):
-        print filename
         author, title = filename.replace(".txt", "").split('_')
         authors.append(author)
         titles.append(title)
@@ -73,9 +73,9 @@ class Verification(base.BaseEstimator):
             similarities = []
             for k in range(len(authors)):
                 text, title, author = texts[k], titles[k], authors[k]
-                if k != i and author not in (author_i, author_j):
+                if author not in (author_i, author_j):
                     similarities.append((k, author, min_max(self.X[i], self.X[k])))
-            similarities.sort(key=lambda i: i[-1], reverse=True)
+            similarities.sort(key=lambda s: s[-1], reverse=True)
             if similarities:
                 indexes, imposters, _ = zip(*similarities[:self.imposters])
                 X = self.X[list(indexes)]
@@ -100,7 +100,8 @@ class Verification(base.BaseEstimator):
     verify = predict
 
 if __name__ == '__main__':
-    verification = Verification(imposters=10, n_features=1000)
-    dataset = prepare_corpus('../data/english')
+    verification = Verification(imposters=5, n_features=5000)
+    print verification
+    dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
     verification.verify(dataset)
