@@ -10,13 +10,17 @@ from itertools import combinations
 import numpy as np 
 from numba import jit
 
+import pandas as pd
+import seaborn as sb
+
 from sklearn import base
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.metrics import precision_score, recall_score
 
 Dataset = namedtuple('Dataset', ['texts', 'titles', 'authors'])
 
-@jit
+@jit('f8(f8[:],f8[:])')
 def min_max(a, b):
     mins = 0.0
     maxs = 0.0
@@ -67,9 +71,10 @@ class Verification(base.BaseEstimator):
 
     def predict(self, dataset):
         texts, titles, authors = dataset
+        scores = np.zeros((len(titles), len(titles)))
         for i, j in combinations(range(len(titles)), 2):
-            vec_i, title_i, author_i = self.X[i], titles[i], authors[i]
-            vec_j, title_j, author_j = self.X[j], titles[j], authors[j]
+            title_i, author_i = titles[i], authors[i]
+            title_j, author_j = titles[j], authors[j]
             similarities = []
             for k in range(len(titles)):
                 text, title, author = texts[k], titles[k], authors[k]
@@ -84,23 +89,36 @@ class Verification(base.BaseEstimator):
                 indices = np.random.randint(0, X.shape[1], size=self.rand_features)
                 truncated_X = X[:,indices]
                 similarities = []
+                vec_i_trunc = self.X[i,indices]
                 for idx, candidate in enumerate(imposters):
-                    similarities.append((candidate, min_max(truncated_X[idx], self.X[i,indices])))
-                similarities.append(('target', min_max(self.X[j,indices], self.X[i,indices])))
+                    similarities.append((candidate, min_max(truncated_X[idx], vec_i_trunc)))
+                similarities.append(('target', min_max(self.X[j,indices], vec_i_trunc)))
                 closest.append(max(similarities, key=lambda i: i[1])[0])
                 sigma = closest.count("target") / float(len(closest))
                 sigmas[k] = sigma
-            mean_sigma = sigmas.mean()
-            print "sigma for text: ", mean_sigma
-            same_author = True if mean_sigma >= self.sigma else False
-            print "%s (by %s) same author as %s (by %s) = %s" % (
-                title_i, author_i, title_j, author_j, same_author)
+            scores[i, j] = sigmas.mean()
+            scores[j, i] = scores[i, j]
+        return scores
 
     verify = predict
 
+def precision_recall_curve(scores, dataset):
+    _, _, authors = dataset
+    precisions, recalls = [], []
+    for sigma in np.arange(0.1, 1.1, 0.01):
+        preds, true, = [], []
+        for i, j in combinations(range(len(authors)), 2):
+            preds.append(1 if scores[i,j] >= sigma else 0)
+            true.append(1 if authors[i] == authors[j] else 0)
+        precisions.append(precision_score(preds, true))
+        recalls.append(recall_score(preds, true))
+    sb.plt.plot(precisions, recalls)
+
+
 if __name__ == '__main__':
-    verification = Verification(imposters=5, n_features=5000)
+    verification = Verification(imposters=5, n_features=10000)
     print verification
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
-    verification.verify(dataset)
+    scores = verification.verify(dataset)
+    precision_recall_curve(scores, dataset)
