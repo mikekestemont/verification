@@ -46,7 +46,7 @@ def prepare_corpus(dirname, cutoff=5000):
     authors, titles, texts = [], [], []
     for filename in glob.glob(dirname + "/*.txt"):
         if '_' in filename:
-            author, title = filename.replace(".txt", "").split('_')
+            author, title = filename.split('/')[-1].replace(".txt", "").split('_')
         else:
             author, title = DUMMY_AUTHORS.next(), unidecode.unidecode(filename.split('/')[-1])
         authors.append(author)
@@ -106,12 +106,13 @@ class Verification(base.BaseEstimator):
             for k in range(self.iterations):
                 indices = np.random.randint(0, X.shape[1], size=self.rand_features)
                 truncated_X = X[:,indices]
-                similarities = []
+                most_similar = None
                 vec_i_trunc = self.X[i,indices]
-                for idx, candidate in enumerate(imposters):
-                    similarities.append((candidate, min_max(truncated_X[idx], vec_i_trunc)))
-                similarities.append(('target', min_max(self.X[j,indices], vec_i_trunc)))
-                if max(similarities, key=lambda i: i[1])[0] == 'target':
+                for idx in range(len(imposters)):
+                    score = min_max(truncated_X[idx], vec_i_trunc)
+                    if most_similar is None or score > most_similar:
+                        most_similar = score
+                if min_max(self.X[j,indices], vec_i_trunc) > most_similar:
                     targets += 1
                 sigma = targets / (k+1)
                 sigmas[k] = sigma
@@ -136,7 +137,7 @@ def precision_recall_curve(scores, dataset):
 
 
 if __name__ == '__main__':
-    verification = Verification(imposters=50, n_features=1000)
+    verification = Verification(imposters=25, n_features=5000)
     print verification
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
