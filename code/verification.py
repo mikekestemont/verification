@@ -91,13 +91,13 @@ class Verification(base.BaseEstimator):
         scores = np.zeros((len(titles), len(titles)))
         for i, j in combinations(range(len(titles)), 2):
             logging.info("Predicting scores for %s - %s" % (authors[i], authors[j]))
-            title_i, author_i = titles[i], authors[i]
-            title_j, author_j = titles[j], authors[j]
+            vec_i, title_i, author_i = self.X[i], titles[i], authors[i]
+            vec_j, title_j, author_j = self.X[j], titles[j], authors[j]
             similarities = []
             for k in range(len(titles)):
                 text, title, author = texts[k], titles[k], authors[k]
                 if author not in (author_i, author_j):
-                    similarities.append((k, author, min_max(self.X[i], self.X[k])))
+                    similarities.append((k, author, min_max(vec_i, self.X[k])))
             similarities.sort(key=lambda s: s[-1], reverse=True)
             indexes, imposters, _ = zip(*similarities[:self.imposters])
             X = self.X[list(indexes)]
@@ -107,12 +107,12 @@ class Verification(base.BaseEstimator):
                 indices = np.random.randint(0, X.shape[1], size=self.rand_features)
                 truncated_X = X[:,indices]
                 most_similar = None
-                vec_i_trunc = self.X[i,indices]
+                vec_i_trunc = vec_i[indices]
                 for idx in range(len(imposters)):
                     score = min_max(truncated_X[idx], vec_i_trunc)
                     if most_similar is None or score > most_similar:
                         most_similar = score
-                if min_max(self.X[j,indices], vec_i_trunc) > most_similar:
+                if min_max(vec_j[indices], vec_i_trunc) > most_similar:
                     targets += 1
                 sigma = targets / (k+1)
                 sigmas[k] = sigma
@@ -137,7 +137,7 @@ def precision_recall_curve(scores, dataset):
 
 
 if __name__ == '__main__':
-    verification = Verification(imposters=25, n_features=5000)
+    verification = Verification(imposters=10, n_features=1000)
     print verification
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
