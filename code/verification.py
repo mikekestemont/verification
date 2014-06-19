@@ -70,25 +70,25 @@ class Verification(base.BaseEstimator):
         for i, j in combinations(range(len(authors)), 2):
             vec_i, title_i, author_i = self.X[i], titles[i], authors[i]
             vec_j, title_j, author_j = self.X[j], titles[j], authors[j]
-            distances = []
+            similarities = []
             for k in range(len(authors)):
                 text, title, author = texts[k], titles[k], authors[k]
                 if k != i and author not in (author_i, author_j):
-                    distances.append((k, author, min_max(self.X[i], self.X[k])))
-            distances.sort(key=lambda i: i[-1], reverse=True)
-            if distances:
-                indexes, imposters, _ = zip(*distances[:self.imposters])
+                    similarities.append((k, author, min_max(self.X[i], self.X[k])))
+            similarities.sort(key=lambda i: i[-1], reverse=True)
+            if similarities:
+                indexes, imposters, _ = zip(*similarities[:self.imposters])
                 X = self.X[list(indexes)]
                 closest = []
                 sigmas = np.zeros(self.iterations)
                 for k in range(self.iterations):
                     indices = np.random.randint(0, X.shape[1], size=self.rand_features)
                     truncated_X = X[:,indices]
-                    distances = []
+                    similarities = []
                     for idx, candidate in enumerate(imposters):
-                        distances.append((candidate, min_max(truncated_X[idx], self.X[i])))
-                    distances.append(('target', min_max(self.X[j,indices], self.X[i])))
-                    closest.append(max(distances, key=lambda i: i[1])[0])
+                        similarities.append((candidate, min_max(truncated_X[idx], self.X[i])))
+                    similarities.append(('target', min_max(self.X[j,indices], self.X[i])))
+                    closest.append(max(similarities, key=lambda i: i[1])[0])
                     sigma = closest.count("target") / float(len(closest))
                     sigmas[k] = sigma
                 mean_sigma = sigmas.mean()
