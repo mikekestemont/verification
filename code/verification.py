@@ -117,6 +117,7 @@ class Verification(base.BaseEstimator):
                 sigmas[k] = sigma
             scores[i, j] = sigmas.mean()
             scores[j, i] = scores[i, j]
+            logging.info("Sigma for %s - %s = %.3f" % (authors[i], authors[j], scores[i, j]))
         return scores
 
     verify = predict
@@ -135,7 +136,7 @@ def precision_recall_curve(scores, dataset):
 
 
 if __name__ == '__main__':
-    verification = Verification(imposters=10, n_features=30000)
+    verification = Verification(imposters=50, n_features=1000)
     print verification
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
