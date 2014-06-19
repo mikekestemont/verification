@@ -83,7 +83,7 @@ class Verification(base.BaseEstimator):
             similarities.sort(key=lambda s: s[-1], reverse=True)
             indexes, imposters, _ = zip(*similarities[:self.imposters])
             X = self.X[list(indexes)]
-            closest = []
+            targets = 0.0
             sigmas = np.zeros(self.iterations)
             for k in range(self.iterations):
                 indices = np.random.randint(0, X.shape[1], size=self.rand_features)
@@ -93,8 +93,9 @@ class Verification(base.BaseEstimator):
                 for idx, candidate in enumerate(imposters):
                     similarities.append((candidate, min_max(truncated_X[idx], vec_i_trunc)))
                 similarities.append(('target', min_max(self.X[j,indices], vec_i_trunc)))
-                closest.append(max(similarities, key=lambda i: i[1])[0])
-                sigma = closest.count("target") / float(len(closest))
+                if max(similarities, key=lambda i: i[1])[0] == 'target':
+                    targets += 1
+                sigma = targets / (k+1)
                 sigmas[k] = sigma
             scores[i, j] = sigmas.mean()
             scores[j, i] = scores[i, j]
@@ -121,4 +122,4 @@ if __name__ == '__main__':
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
     scores = verification.verify(dataset)
-    precision_recall_curve(scores, dataset)
+    # precision_recall_curve(scores, dataset)
