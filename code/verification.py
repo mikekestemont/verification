@@ -33,7 +33,7 @@ def dummy_author():
 
 DUMMY_AUTHORS = dummy_author()
 
-@jit('f8(f8[:],f8[:])')
+@jit('float64(float64[:],float64[:])')
 def min_max(a, b):
     mins = 0.0
     maxs = 0.0
@@ -88,14 +88,15 @@ class Verification(base.BaseEstimator):
 
     def predict(self, dataset):
         texts, titles, authors = dataset
-        scores = np.zeros((len(titles), len(titles)))
-        for i, j in combinations(range(len(titles)), 2):
+        n_samples, _ = self.X.shape
+        scores = np.zeros((n_samples, n_samples))
+        for i, j in combinations(range(n_samples), 2):
             logging.info("Predicting scores for %s - %s" % (authors[i], authors[j]))
             vec_i, title_i, author_i = self.X[i], titles[i], authors[i]
             vec_j, title_j, author_j = self.X[j], titles[j], authors[j]
             similarities = []
-            for k in range(len(titles)):
-                text, title, author = texts[k], titles[k], authors[k]
+            for k in range(n_samples):
+                author = authors[k]
                 if author not in (author_i, author_j):
                     similarities.append((k, author, min_max(vec_i, self.X[k])))
             similarities.sort(key=lambda s: s[-1], reverse=True)
