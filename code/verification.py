@@ -86,7 +86,7 @@ class Verification(base.BaseEstimator):
                     for idx, candidate in enumerate(imposters):
                         distances.append((candidate, min_max(truncated_X[idx], self.X[i])))
                     distances.append(('target', min_max(self.X[j,indices], self.X[i])))
-                    closest.append(min(distances, key=lambda i: i[1])[0])
+                    closest.append(max(distances, key=lambda i: i[1])[0])
                     sigma = closest.count("target") / float(len(closest))
                     sigmas[k] = sigma
                 mean_sigma = np.mean(sigmas)
