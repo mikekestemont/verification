@@ -24,7 +24,7 @@ Dataset = namedtuple('Dataset', ['texts', 'titles', 'authors'])
 def min_max(a, b):
     mins = 0.0
     maxs = 0.0
-    for i in xrange(a.shape[0]):
+    for i in range(a.shape[0]):
         mins += min(a[i], b[i])
         maxs += max(a[i], b[i])
     return mins / maxs
