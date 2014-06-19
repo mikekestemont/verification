@@ -69,7 +69,7 @@ class Verification(base.BaseEstimator):
             vec_i, title_i, author_i = self.X[i], titles[i], authors[i]
             vec_j, title_j, author_j = self.X[j], titles[j], authors[j]
             distances = []
-            for k in range(len(dataset)):
+            for k in range(len(authors)):
                 text, title, author = texts[k], titles[k], authors[k]
                 if k != i and author not in (author_i, author_j):
                     distances.append((k, author, min_max(self.X[i], self.X[k])))
