@@ -119,7 +119,8 @@ class Verification(base.BaseEstimator):
                 sigmas[k] = sigma
             scores[i, j] = sigmas.mean()
             scores[j, i] = scores[i, j]
-            logging.info("Sigma for %s - %s = %.3f" % (authors[i], authors[j], scores[i, j]))
+            logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (
+                titles[i], authors[i], titles[j], authors[j], scores[i, j]))
         return scores
 
     verify = predict
