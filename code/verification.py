@@ -7,7 +7,7 @@ import sys
 
 from collections import defaultdict, namedtuple
 from functools import partial
-from itertools import combinations
+from itertools import combinations, islice
 
 import numpy as np 
 from numba import jit
@@ -20,6 +20,9 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics import precision_score, recall_score
 
+from joblib import Parallel, delayed
+
+from gensim.utils import tokenize
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
@@ -52,9 +55,7 @@ def prepare_corpus(dirname, cutoff=5000):
         authors.append(author)
         titles.append(title)
         with open(filename) as infile:
-            words = [''.join(char for char in word if char.isalpha())
-                     for word in infile.read().lower().split()[:cutoff]]
-            texts.append(words)
+            texts.append(list(islice(tokenize(infile.read(), lowercase=True, deacc=True), 0, cutoff)))
     return Dataset(texts, titles, authors)
 
 def analyzer(words, n=4):
@@ -68,17 +69,18 @@ def analyzer(words, n=4):
 
 class Verification(base.BaseEstimator):
     def __init__(self, n_features=100, random_prop=0.5,
-                 sigma=0.4, n_char=4, imposters=2, iterations=100):
+                 sigma=0.4, n_char=4, imposters=2, iterations=100, analyzer=analyzer):
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
         self.sigma = sigma
         self.n_char = 4
         self.imposters = imposters
         self.iterations = iterations
+        self.analyzer = analyzer
 
     def fit(self, dataset):
         logging.info("Fitting model.")
-        self.vectorizer = CountVectorizer(analyzer=partial(analyzer, n=self.n_char))
+        self.vectorizer = CountVectorizer(analyzer=self.analyzer)
         texts, titles, authors = dataset
         X = self.vectorizer.fit_transform(texts)
         features = np.asarray(X.sum(0).argsort())[0][-self.n_features:]
@@ -115,8 +117,7 @@ class Verification(base.BaseEstimator):
                         most_similar = score
                 if min_max(vec_j[indices], vec_i_trunc) > most_similar:
                     targets += 1
-                sigma = targets / (k+1)
-                sigmas[k] = sigma
+                sigmas[k] = targets / (k+1)
             scores[i, j] = sigmas.mean()
             scores[j, i] = scores[i, j]
             logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (
@@ -139,7 +140,8 @@ def precision_recall_curve(scores, dataset):
 
 
 if __name__ == '__main__':
-    verification = Verification(imposters=10, n_features=1000)
+    verification = Verification(imposters=10, n_features=5000, 
+                                analyzer=partial(analyzer, n=self.n_char))
     print verification
     dataset = prepare_corpus(sys.argv[1])
     verification.fit(dataset)
