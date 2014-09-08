@@ -4,9 +4,10 @@ import numpy as np
 from scipy.cluster.hierarchy import linkage, dendrogram
 from scipy.spatial.distance import squareform
 
+
 from verification import Verification, prepare_corpus
 
-verification = Verification(imposters=25, n_features=5000)
+verification = Verification(imposters=25, n_features=50000)
 print verification
 dataset = prepare_corpus('../data/english')
 verification.fit(dataset)
@@ -19,4 +20,6 @@ _, titles, authors = dataset
 
 Z = linkage(squareform(dm), method='average')
 
+import matplotlib.pyplot as plt
 dendrogram(Z, labels=[t[:40] + '...' for t in authors], orientation='right')
+plt.show()

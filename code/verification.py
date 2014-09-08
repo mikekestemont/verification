@@ -42,7 +42,7 @@ def min_max(a, b):
         maxs += max(a[i], b[i])
     return mins / maxs
 
-def prepare_corpus(dirname, cutoff=5000):
+def prepare_corpus(dirname, cutoff=100000):
     authors, titles, texts = [], [], []
     for filename in glob.glob(dirname + "/*.txt"):
         if '_' in filename:
@@ -68,7 +68,7 @@ def analyzer(words, n=4):
 
 class Verification(base.BaseEstimator):
     def __init__(self, n_features=100, random_prop=0.5,
-                 sigma=0.4, n_char=4, imposters=2, iterations=100):
+                 sigma=0.4, n_char=4, imposters=2, iterations=300):
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
         self.sigma = sigma
