@@ -1,0 +1,23 @@
+First: large experiments on 10000 (5000+5000 pairs) in background corpus
+150 iterations, 100 potential imposters, 30 actual imposters (all these had limited effect in original paper):
+- character 4-grams
+- word unigrams
+- word uni- and bigrams
+Report maximal f-scores for each feature type > continue with best feature type
+
+Now: tables with maximal f1-scores, but now randomly sample 10000 pairs (to simulate the real-world imbalance of both types of curves):
+- vary nr of potential/actual imposters
+- effect of nr_features
+- effect of iterations
+
+
+**** now we proceed to test set without Exp.
+- compare best settings to Burrows's Delta by plotting densities for both minmax and delta
+- show precision-recall curve and explain why we should optimize on precision
+- run the expositio experiment
+
+
+
+
+
+

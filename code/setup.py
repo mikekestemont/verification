@@ -5,7 +5,9 @@ from Cython.Distutils import build_ext
 import numpy as np
 
 setup(
-	name = "Min-Max distance function",
+	name = "Verification distance function",
 	cmdclass = {"build_ext": build_ext},
-    ext_modules = [Extension("minmax", ["minmax.pyx"], include_dirs = [np.get_include()])]#["Users/mike/anaconda/lib/python3.4/site-packages/numpy/core/include"])]
+    ext_modules = [Extension("distances", ["distances.pyx"], include_dirs = [np.get_include()])]
 )
+
+# compile this via: python setup.py build_ext --inplace
