@@ -43,8 +43,9 @@ def manhattan(np.ndarray[DTYPE_t, ndim=1] a_vec, np.ndarray[DTYPE_t, ndim=1] b_v
     return distance
 
 @cython.boundscheck(False)
-def normalized_distance(np.ndarray[DTYPE_t, ndim=1] a_vec, np.ndarray[DTYPE_t, ndim=1] b_vec, int cutoff):
-    cdef double numerator = 0.0
+def ngd(np.ndarray[DTYPE_t, ndim=1] a_vec, np.ndarray[DTYPE_t, ndim=1] b_vec):
+    # ngram-distance defined by Kesjl, Stamatatos etc.
+    cdef double dist = 0.0
     cdef int i
     cdef double update = 0.0
     cdef double term_a = 0.0
@@ -55,6 +56,5 @@ def normalized_distance(np.ndarray[DTYPE_t, ndim=1] a_vec, np.ndarray[DTYPE_t, n
         if term_b:
             update = square(term_a/term_b)
             if update:
-                numerator+=update
-    cdef double denominator =4.0*cutoff
-    return numerator/denominator
+                dist+=update
+    return dist
