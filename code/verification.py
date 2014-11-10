@@ -16,7 +16,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, T
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import precision_score, recall_score, f1_score
 from gensim.utils import tokenize
-from scipy.spatial.distance import cosine, euclidean
+from scipy.spatial.distance import cosine, euclidean, cityblock
 
 # for (remote) plotting:
 import matplotlib
@@ -44,32 +44,25 @@ def identity(x):
 DUMMY_AUTHORS = dummy_author()
 
 try:
-    # attempt to load the compiled cython-version of the min_max distance function:
-    from distances import min_max
-    from distances import burrows_delta
-    from distances import ngd
-    from distances import manhattan
+    # attempt to load the compiled cython-version of the minmax distance function:
+    from distances import minmax
+    from distances import divergence
 except:
     # if that fails, fall back to the numba-version (which is still pretty fast)
     from numba import jit
-    # minmax by Koppel & Winter
     @jit('float64(float64[:],float64[:])')
-    def min_max(a, b):
+    def minmax(a, b):
+        # minmax (ruzicka) by Koppel & Winter
         mins = 0.0
         maxs = 0.0
         for i in range(a.shape[0]):
             mins += min(a[i], b[i])
             maxs += max(a[i], b[i])
         return mins/maxs
-    # Burrows's delta:
-    @jit('float64(float64[:],float64[:],float64[:])')
-    def burrows_delta(a, b, weights):
-        delta = 0.0
-        for i in range(a.shape[0]):
-            delta+= abs(a[i]-b[i])/weights[i]
-        return delta
+
     @jit('float64(float64[:],float64[:])')
-    def ngd(a, b):
+    def divergence(a, b):
+        # divergence by keselj, stamatatos, etc.
         dist = 0.0
         for i in range(len(a)):
             term_a = 2*(a[i]-b[i])
@@ -79,13 +72,6 @@ except:
                 if not math.isnan(update):
                     dist+=update
         return dist
-    # Manhattan city block distance:
-    @jit('float64(float64[:],float64[:])')
-    def manhattan(a, b):
-        distance = 0.0
-        for i in range(a.shape[0]):
-            distance+= abs(a[i]-b[i])
-        return distance
 
 def prepare_corpus(dirname, text_cutoff):
     underscore = re.compile(r'\_')
@@ -113,13 +99,14 @@ def analyzer(words, n):
 
 class Verification(base.BaseEstimator):
     def __init__(self, n_features, random_prop, sample, metric, text_cutoff,
-                 n_actual_imposters, iterations, nr_test_pairs, use_idf,
+                 n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_imposters,
                  nr_same_author_test_pairs, nr_diff_author_test_pairs):
         self.sample = sample
-        assert metric in ("ngd", "burrows", "minmax", "manhattan", "cosine", "euclidean")
+        assert metric in ("divergence", "minmax", "manhattan", "cosine", "euclidean")
         self.metric = metric
-        self.use_idf = use_idf
+        assert vector_space_model in ("idf", "tf", "std", "plm")
+        self.vector_space_model = vector_space_model
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
         self.n_actual_imposters = n_actual_imposters
@@ -135,7 +122,7 @@ class Verification(base.BaseEstimator):
 
     def fit(self, background_dataset, devel_dataset):
         """
-        Feature selection + tf-idf calculation on dataset
+        Build vector space model
         """
         logging.info("Fitting model.")
         self.background_dataset = background_dataset
@@ -143,7 +130,7 @@ class Verification(base.BaseEstimator):
         # unpack:
         background_texts, devel_texts = self.background_dataset.texts, self.devel_dataset.texts
         # fit:
-        if not self.use_idf:
+        if self.vector_space_model in ("tf", "std"):
             if self.feature_type == "char":
                 self.analyzer = partial(analyzer, n=self.feature_ngram_range)
                 self.vectorizer = TfidfVectorizer(analyzer=self.analyzer, max_features=self.n_features, use_idf=False)
@@ -153,10 +140,12 @@ class Verification(base.BaseEstimator):
             self.X_background = self.vectorizer.fit_transform(background_texts).toarray()
             # apply vectorizer to devel corpus (get matrix of unnormalized relative term frequencies)
             self.X_devel = self.vectorizer.transform(devel_texts).toarray()
-            if self.metric == "burrows":
+            if self.vector_space_model == "std":
                 # extract std-weights from background texts:
-                self.delta_weights = StandardScaler().fit(self.X_background).std_
-        else:
+                delta_weights = StandardScaler().fit(self.X_background).std_
+                self.X_background = np.divide(self.X_background, delta_weights)
+                self.X_devel = np.divide(self.X_background, delta_weights)
+        elif self.vector_space_model == "idf":
             if self.feature_type == "char":
                 self.analyzer = partial(analyzer, n=self.feature_ngram_range)
                 self.vectorizer = CountVectorizer(analyzer=self.analyzer)
@@ -174,9 +163,8 @@ class Verification(base.BaseEstimator):
             # divide the sets again:
             self.X_background = X[:len(background_texts)]
             self.X_devel = X[len(background_texts):]
-            if self.metric == "burrows":
-                # extract std-weights from background texts:
-                self.delta_weights = StandardScaler().fit(self.X_background).std_
+        elif self.vector_space_model == "plm":
+            raise NotImplementedError("Plm vector space coming soon...")
         return self
 
     def plot_weight_properties(self):
@@ -272,16 +260,14 @@ class Verification(base.BaseEstimator):
             for i, j in (self.test_pairs):
                 vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
                 vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
-                if self.metric == "burrows":
-                    dist = burrows_delta(vec_i, vec_j, self.delta_weights)
-                elif self.metric == "ngd":
-                    dist = ngd(vec_i, vec_j, self.text_cutoff)
+                if self.metric == "divergence":
+                    dist = divergence(vec_i, vec_j)
                 elif self.metric == "minmax":
-                    dist = min_max(vec_i, vec_j)
+                    dist = minmax(vec_i, vec_j)
                 elif self.metric == "manhattan":
-                    dist = manhattan(vec_i, vec_j)
+                    dist = cityblock(vec_i, vec_j)
                 elif self.metric == "cosine":
-                    dist = cosine(vec_i, vec_j)
+                    dist = 1-cosine(vec_i, vec_j)
                 elif self.metric == "euclidean":
                     dist = euclidean(vec_i, vec_j)
                 distances.append(dist)
@@ -310,22 +296,17 @@ class Verification(base.BaseEstimator):
                     # make sure the background corpus isn't polluted (this step is supervised...):
                     if background_author in (author_i, author_j):
                         continue
-                    if self.metric == "burrows":
-                        background_similarities.append((k, background_author, burrows_delta(vec_i, self.X_background[k], self.delta_weights)))
-                    elif self.metric == "ngd":
-                        background_similarities.append((k, background_author, ngd(vec_i, self.X_background[k], self.text_cutoff)))
+                    if self.metric == "divergence":
+                        background_similarities.append((k, background_author, divergence(vec_i, self.X_background[k])))
                     elif self.metric == "manhattan":
-                        background_similarities.append((k, background_author, manhattan(vec_i, self.X_background[k])))
+                        background_similarities.append((k, background_author, cityblock(vec_i, self.X_background[k])))
                     elif self.metric == "cosine":
-                        background_similarities.append((k, background_author, cosine(vec_i, self.X_background[k])))
+                        background_similarities.append((k, background_author, 1-cosine(vec_i, self.X_background[k])))
                     elif self.metric == "euclidean":
                         background_similarities.append((k, background_author, euclidean(vec_i, self.X_background[k])))
                     elif self.metric == "minmax":
-                        background_similarities.append((k, background_author, min_max(vec_i, self.X_background[k])))
-                if self.metric in ("minmax", "cosine"):
-                    background_similarities.sort(key=lambda s:s[-1], reverse=True)
-                else:
-                    background_similarities.sort(key=lambda s:s[-1], reverse=False)
+                        background_similarities.append((k, background_author, minmax(vec_i, self.X_background[k])))
+                background_similarities.sort(key=lambda s:s[-1], reverse=False)
                 # select m potential imposters
                 m_indexes, m_imposters, _ = zip(*background_similarities[:self.m_potential_imposters])
                 m_X = self.X_background[list(m_indexes)]
@@ -344,48 +325,31 @@ class Verification(base.BaseEstimator):
                     most_similar = None
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
                     for idx in range(n_actual_imposters):
-                        if self.metric == "burrows":
-                            score = burrows_delta(truncated_X[idx], vec_i_trunc, self.delta_weights)
-                            if most_similar is None or score < most_similar:
-                                most_similar = score
-                        elif self.metric == "ngd":
-                            score = ngd(truncated_X[idx], vec_i_trunc, self.text_cutoff)
-                            if most_similar is None or score < most_similar:
-                                most_similar = score
+                        if self.metric == "divergence":
+                            score = divergence(truncated_X[idx], vec_i_trunc)
                         elif self.metric == "minmax":
-                            score = min_max(truncated_X[idx], vec_i_trunc)
-                            if most_similar is None or score > most_similar:
-                                most_similar = score
+                            score = minmax(truncated_X[idx], vec_i_trunc)
                         elif self.metric == "manhattan":
-                            score = manhattan(truncated_X[idx], vec_i_trunc)
-                            if most_similar is None or score < most_similar:
-                                most_similar = score
+                            score = cityblock(truncated_X[idx], vec_i_trunc)
                         elif self.metric == "cosine":
-                            score = cosine(truncated_X[idx], vec_i_trunc)
-                            if most_similar is None or score > most_similar:
-                                most_similar = score
+                            score = 1-cosine(truncated_X[idx], vec_i_trunc)
                         elif self.metric == "euclidean":
                             score = euclidean(truncated_X[idx], vec_i_trunc)
-                            if most_similar is None or score < most_similar:
-                                most_similar = score
+                        if most_similar is None or score < most_similar:
+                            most_similar = score
+                    target_distance = None
                     if self.metric == "minmax":
-                        if min_max(vec_i_trunc, vec_j_trunk) > most_similar:
-                            targets+=1.0
-                    elif self.metric == "ngd":
-                        if ngd(vec_i_trunc, vec_j_trunk, self.text_cutoff) < most_similar:
-                            targets+=1.0
-                    elif self.metric == "burrows":
-                        if burrows_delta(vec_i_trunc, vec_j_trunk, self.delta_weights) < most_similar:
-                            targets+=1.0
+                        target_distance = minmax(vec_i_trunc, vec_j_trunk)
+                    elif self.metric == "divergence":
+                        target_distance = divergence(vec_i_trunc, vec_j_trunk)
                     elif self.metric == "manhattan":
-                        if manhattan(vec_i_trunc, vec_j_trunk) < most_similar:
-                            targets+=1.0
+                        target_distance = cityblock(vec_i_trunc, vec_j_trunk)
                     elif self.metric == "cosine":
-                        if cosine(vec_i_trunc, vec_j_trunk) > most_similar:
-                            targets+=1.0
+                        target_distance = 1-cosine(vec_i_trunc, vec_j_trunk)
                     elif self.metric == "euclidean":
-                        if euclidean(vec_i_trunc, vec_j_trunk) < most_similar:
-                            targets+=1.0
+                        target_distance = euclidean(vec_i_trunc, vec_j_trunk)
+                    if target_distance < most_similar:
+                        targets+=1.0
                     sigmas[k] = targets/(k+1.0)
                 if devel_authors[i] == devel_authors[j]:
                     self.scores.append(("same_author", sigmas.mean()))
@@ -406,10 +370,7 @@ class Verification(base.BaseEstimator):
         for threshold in np.arange(0.001, 1.001, 0.001):
             preds, true, = [], []
             for category, score in self.scores:
-                if self.metric in ("ngd", "burrows", "manhattan", "euclidean"):
-                    preds.append(1 if score <= threshold else 0)
-                elif self.metric in ("cosine", "minmax"):
-                    preds.append(1 if score >= threshold else 0)
+                preds.append(1 if score <= threshold else 0)
                 true.append(1 if category == "same_author" else 0)
             try:
                 f1 = f1_score(preds, true)
@@ -463,18 +424,16 @@ class Verification(base.BaseEstimator):
         sns.plt.text(best_f1[1], max_y, "f1: "+str(round(best_f1[0], 2)), rotation=0, fontsize=5)
         print("f1: "+str(round(best_f1[0], 2))+" @thresholds="+str(best_f1[1]))
         sns.plt.legend(loc=0)
-        if self.metric == "burrows":
-            sns.plt.title("Burrows's Delta (with threshold)")
-        elif self.metric == "ngd":
-            sns.plt.title("NGD (with threshold)")
+        if self.metric == "divergence":
+            sns.plt.title("Divergence")
         elif self.metric == "manhattan":
-            sns.plt.title("Manhattan City Block Distance (with threshold)")
+            sns.plt.title("Manhattan")
         elif self.metric == "cosine":
-            sns.plt.title("Cosine Distance (with threshold)")
+            sns.plt.title("Cosine")
         elif self.metric == "euclidean":
-            sns.plt.title("Euclidean Distance (with threshold)")
-        else:
-            sns.plt.title('Min-max distance (with threshold)')
+            sns.plt.title("Euclidean")
+        elif self.metric == "minmax":
+            sns.plt.title("Minmax")
         sns.plt.xlabel('threshold', fontsize=7)
         sns.plt.xlim(0, 1)
         sns.plt.savefig("curves.pdf")
@@ -483,8 +442,8 @@ class Verification(base.BaseEstimator):
 
 if __name__ == '__main__':
     sample = False # whether or not to sample from author and features
-    metric = "minmax" # ("burrows", ngd" "minmax", "manhattan", "cosine", "euclidean") # (dis)similarity metric to use
-    use_idf = True
+    metric = "cosine" # one of: "minmax", "divergence", "manhattan", "cosine", "euclidean" # distance metric to use
+    vector_space_model = "std" # one of: "idf", "tf", "std", "plm"
     m_potential_imposters = 30
     n_actual_imposters = 5
     nr_same_author_test_pairs = 250 # or None, if specified we sample n same_author_pairs and n diff_author_pairs
@@ -492,12 +451,12 @@ if __name__ == '__main__':
     nr_test_pairs = None # nr of randomly selected pairs (both same and diff), or None: all texts will be paired exhaustively
     n_features = 5000
     random_prop = 0.5
-    iterations = 100
+    iterations = 10
     text_cutoff = 50000
     feature_type = "word"
     feature_ngram_range = (1,1) #(1,1) # word: 4
     verification = Verification(sample =                    sample,
-                                use_idf =                   use_idf,
+                                vector_space_model =        vector_space_model,
                                 metric =                    metric,
                                 n_actual_imposters =        n_actual_imposters,
                                 m_potential_imposters =     m_potential_imposters,
