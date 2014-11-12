@@ -24,10 +24,6 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-# set seeds:
-rnd = random.Random(1066)
-np.random.seed(1302)
-
 logging.basicConfig(
     format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
@@ -118,7 +114,7 @@ class Verification(base.BaseEstimator):
     def __init__(self, n_features, random_prop, sample, metric, text_cutoff,
                  n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_imposters,
-                 nr_same_author_test_pairs, nr_diff_author_test_pairs):
+                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
@@ -126,6 +122,7 @@ class Verification(base.BaseEstimator):
         if vector_space_model not in ("idf", "tf", "std", "plm"):
             raise ValueError("Vector space model `%s` is not supported." % vector_space_model)
         self.vector_space_model = vector_space_model
+        self.rnd = np.random.RandomState(random_seed)
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
         self.n_actual_imposters = n_actual_imposters
@@ -275,15 +272,15 @@ class Verification(base.BaseEstimator):
         if self.nr_test_pairs:
             # randomly select n pairs from all pairs
             self.test_pairs = same_author_pairs + diff_author_pairs
-            rnd.shuffle(self.test_pairs)
+            self.rnd.shuffle(self.test_pairs)
             self.test_pairs = rnd.sample(self.test_pairs, self.nr_test_pairs)
         elif self.nr_same_author_test_pairs and self.nr_diff_author_test_pairs:
             # randomly select n different author pairs and m same author pairs
-            rnd.shuffle(same_author_pairs)
-            rnd.shuffle(diff_author_pairs)
-            same_author_pairs = rnd.sample(
+            self.rnd.shuffle(same_author_pairs)
+            self.rnd.shuffle(diff_author_pairs)
+            same_author_pairs = self.rnd.sample(
                 same_author_pairs, self.nr_same_author_test_pairs)
-            diff_author_pairs = rnd.sample(
+            diff_author_pairs = self.rnd.sample(
                 diff_author_pairs, self.nr_diff_author_test_pairs)
             self.test_pairs = same_author_pairs + diff_author_pairs
         else:
