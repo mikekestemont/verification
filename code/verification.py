@@ -256,6 +256,7 @@ class Verification(base.BaseEstimator):
         same_author_pairs, diff_author_pairs = [], []
         for i in range(n_devel_samples):
             for j in range(n_devel_samples):
+                #print(j)
                 # don't pair identical samples:
                 if i != j:
                     vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
@@ -443,11 +444,11 @@ if __name__ == '__main__':
     n_actual_imposters = 5
     # or None, if specified we sample n same_author_pairs and n
     # diff_author_pairs
-    nr_same_author_test_pairs = 250
-    nr_diff_author_test_pairs = 1000
+    nr_same_author_test_pairs = None
+    nr_diff_author_test_pairs = None
     # nr of randomly selected pairs (both same and diff), or None: all texts
     # will be paired exhaustively
-    nr_test_pairs = None
+    nr_test_pairs = 1000
     n_features = 5000
     random_prop = 0.5
     iterations = 10
@@ -467,7 +468,7 @@ if __name__ == '__main__':
                                 feature_ngram_range=feature_ngram_range,
                                 nr_same_author_test_pairs=nr_same_author_test_pairs,
                                 nr_diff_author_test_pairs=nr_diff_author_test_pairs,
-                                nr_test_pairs=nr_test_pairs
+                                nr_test_pairs=nr_test_pairs,
                                 random_seed=1096)
     background_dataset = prepare_corpus(
         dirname=sys.argv[1], text_cutoff=text_cutoff)
