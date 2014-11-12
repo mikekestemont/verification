@@ -79,6 +79,11 @@ except:
                     dist += update
         return dist
 
+DISTANCE_METRICS = {"divergence": divergence,
+                    "minmax": minmax,
+                    "cityblock": cityblock,
+                    "cosine": cosine,
+                    "euclidean": euclidean}
 
 def prepare_corpus(dirname, text_cutoff):
     underscore = re.compile(r'\_')
@@ -115,10 +120,9 @@ class Verification(base.BaseEstimator):
                  feature_type, feature_ngram_range, m_potential_imposters,
                  nr_same_author_test_pairs, nr_diff_author_test_pairs):
         self.sample = sample
-        if metric not in (
-            "divergence", "minmax", "manhattan", "cosine", "euclidean"):
+        if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
-        self.metric = metric
+        self.metric = DISTANCE_METRICS[metric]
         if vector_space_model not in ("idf", "tf", "std", "plm"):
             raise ValueError("Vector space model `%s` is not supported." % vector_space_model)
         self.vector_space_model = vector_space_model
@@ -298,16 +302,7 @@ class Verification(base.BaseEstimator):
                     i], devel_titles[i], devel_authors[i]
                 vec_j, title_j, author_j = self.X_devel[
                     j], devel_titles[j], devel_authors[j]
-                if self.metric == "divergence":
-                    dist = divergence(vec_i, vec_j)
-                elif self.metric == "minmax":
-                    dist = minmax(vec_i, vec_j)
-                elif self.metric == "manhattan":
-                    dist = cityblock(vec_i, vec_j)
-                elif self.metric == "cosine":
-                    dist = cosine(vec_i, vec_j)
-                elif self.metric == "euclidean":
-                    dist = euclidean(vec_i, vec_j)
+                dist = self.metric(vec_i, vec_j)
                 distances.append(dist)
                 if author_i == author_j:
                     labels.append("same_author")
@@ -342,21 +337,8 @@ class Verification(base.BaseEstimator):
                     # is supervised...):
                     if background_author in (author_i, author_j):
                         continue
-                    if self.metric == "divergence":
-                        background_similarities.append(
-                            (k, background_author, divergence(vec_i, self.X_background[k])))
-                    elif self.metric == "manhattan":
-                        background_similarities.append(
-                            (k, background_author, cityblock(vec_i, self.X_background[k])))
-                    elif self.metric == "cosine":
-                        background_similarities.append(
-                            (k, background_author, cosine(vec_i, self.X_background[k])))
-                    elif self.metric == "euclidean":
-                        background_similarities.append(
-                            (k, background_author, euclidean(vec_i, self.X_background[k])))
-                    elif self.metric == "minmax":
-                        background_similarities.append(
-                            (k, background_author, minmax(vec_i, self.X_background[k])))
+                    background_similarities.append(
+                        (k, background_author, self.metric(vec_i, self.X_background[k])))
                 background_similarities.sort(
                     key=lambda s: s[-1], reverse=False)
                 # select m potential imposters
@@ -382,29 +364,11 @@ class Verification(base.BaseEstimator):
                     vec_i_trunc, vec_j_trunk = vec_i[
                         rand_feat_indices], vec_j[rand_feat_indices]
                     for idx in range(n_actual_imposters):
-                        if self.metric == "divergence":
-                            score = divergence(truncated_X[idx], vec_i_trunc)
-                        elif self.metric == "minmax":
-                            score = minmax(truncated_X[idx], vec_i_trunc)
-                        elif self.metric == "manhattan":
-                            score = cityblock(truncated_X[idx], vec_i_trunc)
-                        elif self.metric == "cosine":
-                            score = cosine(truncated_X[idx], vec_i_trunc)
-                        elif self.metric == "euclidean":
-                            score = euclidean(truncated_X[idx], vec_i_trunc)
+                        score = self.metric(truncated_X[idx], vec_i_trunc)
                         if most_similar is None or score < most_similar:
                             most_similar = score
                     target_distance = None
-                    if self.metric == "minmax":
-                        target_distance = minmax(vec_i_trunc, vec_j_trunk)
-                    elif self.metric == "divergence":
-                        target_distance = divergence(vec_i_trunc, vec_j_trunk)
-                    elif self.metric == "manhattan":
-                        target_distance = cityblock(vec_i_trunc, vec_j_trunk)
-                    elif self.metric == "cosine":
-                        target_distance = cosine(vec_i_trunc, vec_j_trunk)
-                    elif self.metric == "euclidean":
-                        target_distance = euclidean(vec_i_trunc, vec_j_trunk)
+                    target_distance = self.metric(vec_i_trunc, vec_j_trunk)
                     if target_distance < most_similar:
                         targets += 1.0
                     sigmas[k] = targets / (k + 1.0)
@@ -453,7 +417,7 @@ class Verification(base.BaseEstimator):
         sns.plt.ylim(0, 1)
         sns.plt.plot(
             [prec for prec, _ in precisions], [rec for rec, _ in recalls])
-        with open(self.metric + ".txt", "wt") as F:
+        with open(self.metric.__name__ + ".txt", "wt") as F:
             # with open("unigrams.txt", "wt") as F:
             for prec, rec in zip(precisions, recalls):
                 F.write(str(prec[0]) + "\t" + str(rec[0]) + "\n")
@@ -493,7 +457,7 @@ class Verification(base.BaseEstimator):
         print(
             "f1: " + str(round(best_f1[0], 2)) + " @thresholds=" + str(best_f1[1]))
         sns.plt.legend(loc=0)
-        sns.plt.title(self.metric.capitalize())
+        sns.plt.title(self.metric.__name__.capitalize())
         sns.plt.xlabel('threshold', fontsize=7)
         sns.plt.xlim(0, 1)
         sns.plt.savefig("curves.pdf")
