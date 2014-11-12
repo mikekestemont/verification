@@ -278,10 +278,8 @@ class Verification(base.BaseEstimator):
             # randomly select n different author pairs and m same author pairs
             self.rnd.shuffle(same_author_pairs)
             self.rnd.shuffle(diff_author_pairs)
-            same_author_pairs = self.rnd.sample(
-                same_author_pairs, self.nr_same_author_test_pairs)
-            diff_author_pairs = self.rnd.sample(
-                diff_author_pairs, self.nr_diff_author_test_pairs)
+            same_author_pairs = self.rnd.sample(same_author_pairs, self.nr_same_author_test_pairs)
+            diff_author_pairs = self.rnd.sample(diff_author_pairs, self.nr_diff_author_test_pairs)
             self.test_pairs = same_author_pairs + diff_author_pairs
         else:
             self.test_pairs = same_author_pairs + diff_author_pairs
@@ -293,19 +291,14 @@ class Verification(base.BaseEstimator):
             for i, j in (self.test_pairs):
                 vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
                 vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
-                dist = self.metric(vec_i, vec_j)
-                distances.append(dist)
-                if author_i == author_j:
-                    labels.append("same_author")
-                else:
-                    labels.append("diff_author")
+                distances.append(self.metric(vec_i, vec_j))
+                labels.append("same_author" if author_i == author_j else "diff_author")
             for dist, label in zip(distances, labels):
-                score = (dist - min(distances)) / (max(distances) - min(distances))
-                self.scores.append((label, score))
+                self.scores.append((label, (dist - min(distances)) / (max(distances) - min(distances))))
             for index, item in enumerate(self.test_pairs):
                 i, j = item
-                vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
-                vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
+                _, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
+                _, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 logging.info("Distance for %s (%s) - %s (%s) = %.3f" %
                              (title_i, author_i, title_j, author_j, self.scores[index][1]))
         else:
@@ -351,6 +344,7 @@ class Verification(base.BaseEstimator):
                 self.scores.append(("same_author" if devel_authors[i] == devel_authors[j] else "diff_author", sigmas.mean()))
                 logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (
                     devel_titles[i], devel_authors[i], devel_titles[j], devel_authors[j], sigmas.mean()))
+        return self.scores
 
     verify = predict
 
