@@ -371,7 +371,7 @@ class Verification(base.BaseEstimator):
                     self.scores.append(("diff_author", sigmas.mean()))
                 logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (devel_titles[
                              i], devel_authors[i], devel_titles[j], devel_authors[j], sigmas.mean()))
-            return
+
     verify = predict
 
     def plot_results(self):
@@ -455,7 +455,6 @@ class Verification(base.BaseEstimator):
         sns.plt.xlim(0, 1)
         sns.plt.savefig("curves.pdf")
         sns.plt.clf()
-        return
 
 if __name__ == '__main__':
     sample = False  # whether or not to sample from author and features
