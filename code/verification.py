@@ -291,10 +291,8 @@ class Verification(base.BaseEstimator):
             distances, labels = [], []
             # verify each pair:
             for i, j in (self.test_pairs):
-                vec_i, title_i, author_i = self.X_devel[
-                    i], devel_titles[i], devel_authors[i]
-                vec_j, title_j, author_j = self.X_devel[
-                    j], devel_titles[j], devel_authors[j]
+                vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
+                vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 dist = self.metric(vec_i, vec_j)
                 distances.append(dist)
                 if author_i == author_j:
@@ -307,19 +305,15 @@ class Verification(base.BaseEstimator):
                 self.scores.append((label, score))
             for index, item in enumerate(self.test_pairs):
                 i, j = item
-                vec_i, title_i, author_i = self.X_devel[
-                    i], devel_titles[i], devel_authors[i]
-                vec_j, title_j, author_j = self.X_devel[
-                    j], devel_titles[j], devel_authors[j]
+                vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
+                vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 logging.info("Distance for %s (%s) - %s (%s) = %.3f" %
                              (title_i, author_i, title_j, author_j, self.scores[index][1]))
         else:
             # verify each pair:
             for i, j in (self.test_pairs):
-                vec_i, title_i, author_i = self.X_devel[
-                    i], devel_titles[i], devel_authors[i]
-                vec_j, title_j, author_j = self.X_devel[
-                    j], devel_titles[j], devel_authors[j]
+                vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
+                vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 logging.info("Predicting scores for %s - %s" %
                              (devel_authors[i], devel_authors[j]))
                 # get impostors from the background corpus:
@@ -344,13 +338,13 @@ class Verification(base.BaseEstimator):
                 ##################### put this inside loop??? #################
                 # randomly select n_actual_impostors from
                 # m_potential_imposters:
-                rand_imposter_indices = np.random.randint(
+                rand_imposter_indices = self.rnd.randint(
                     0, m_X.shape[0], size=self.n_actual_imposters)
                 truncated_X = m_X[rand_imposter_indices, :]
                 ###############################################################
                 for k in range(self.iterations):
                     # select random features:
-                    rand_feat_indices = np.random.randint(
+                    rand_feat_indices = self.rnd.randint(
                         0, truncated_X.shape[1], size=self.rand_features)
                     truncated_X = truncated_X[:, rand_feat_indices]
                     most_similar = None
@@ -378,9 +372,10 @@ class Verification(base.BaseEstimator):
         # This really doesn't belong to the verification class. It only needs the RESULTS
         # of the verification class. Refactor to the already suggested plotting module.
         # set param:
-        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 'axes.titlesize': 3, "font.family": "sans-serif",
-              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 'ylabel.minor.size': 0.3,
-              'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans'], }
+        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 
+              'axes.titlesize': 3, "font.family": "sans-serif",
+              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 
+              'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans'], }
         sns.set_style("darkgrid", rc=rc)
         # first, plot precision-recall curves (for non-zero combinations of
         # precision and recall)
