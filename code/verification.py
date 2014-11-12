@@ -300,8 +300,7 @@ class Verification(base.BaseEstimator):
                 else:
                     labels.append("diff_author")
             for dist, label in zip(distances, labels):
-                score = (dist - min(distances)) / \
-                    (max(distances) - min(distances))
+                score = (dist - min(distances)) / (max(distances) - min(distances))
                 self.scores.append((label, score))
             for index, item in enumerate(self.test_pairs):
                 i, j = item
@@ -347,24 +346,15 @@ class Verification(base.BaseEstimator):
                     rand_feat_indices = self.rnd.randint(
                         0, truncated_X.shape[1], size=self.rand_features)
                     truncated_X = truncated_X[:, rand_feat_indices]
-                    most_similar = None
-                    vec_i_trunc, vec_j_trunk = vec_i[
-                        rand_feat_indices], vec_j[rand_feat_indices]
-                    for idx in range(n_actual_imposters):
-                        score = self.metric(truncated_X[idx], vec_i_trunc)
-                        if most_similar is None or score < most_similar:
-                            most_similar = score
-                    target_distance = None
+                    vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
+                    most_similar = min(self.metric(truncated_X[idx], vec_i_trunc) for idx in range(n_actual_imposters))
                     target_distance = self.metric(vec_i_trunc, vec_j_trunk)
                     if target_distance < most_similar:
                         targets += 1.0
                     sigmas[k] = targets / (k + 1.0)
-                if devel_authors[i] == devel_authors[j]:
-                    self.scores.append(("same_author", sigmas.mean()))
-                else:
-                    self.scores.append(("diff_author", sigmas.mean()))
-                logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (devel_titles[
-                             i], devel_authors[i], devel_titles[j], devel_authors[j], sigmas.mean()))
+                self.scores.append(("same_author" if devel_authors[i] == devel_authors[j] else "diff_author", sigmas.mean()))
+                logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (
+                    devel_titles[i], devel_authors[i], devel_titles[j], devel_authors[j], sigmas.mean()))
 
     verify = predict
 
