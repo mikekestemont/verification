@@ -375,6 +375,8 @@ class Verification(base.BaseEstimator):
     verify = predict
 
     def plot_results(self):
+        # This really doesn't belong to the verification class. It only needs the RESULTS
+        # of the verification class. Refactor to the already suggested plotting module.
         # set param:
         rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 'axes.titlesize': 3, "font.family": "sans-serif",
               'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 'ylabel.minor.size': 0.3,
@@ -490,7 +492,8 @@ if __name__ == '__main__':
                                 feature_ngram_range=feature_ngram_range,
                                 nr_same_author_test_pairs=nr_same_author_test_pairs,
                                 nr_diff_author_test_pairs=nr_diff_author_test_pairs,
-                                nr_test_pairs=nr_test_pairs)
+                                nr_test_pairs=nr_test_pairs
+                                random_seed=1096)
     background_dataset = prepare_corpus(
         dirname=sys.argv[1], text_cutoff=text_cutoff)
     devel_dataset = prepare_corpus(
