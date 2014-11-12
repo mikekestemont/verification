@@ -305,7 +305,7 @@ class Verification(base.BaseEstimator):
                 elif self.metric == "manhattan":
                     dist = cityblock(vec_i, vec_j)
                 elif self.metric == "cosine":
-                    dist = 1 - cosine(vec_i, vec_j)
+                    dist = cosine(vec_i, vec_j)
                 elif self.metric == "euclidean":
                     dist = euclidean(vec_i, vec_j)
                 distances.append(dist)
@@ -350,7 +350,7 @@ class Verification(base.BaseEstimator):
                             (k, background_author, cityblock(vec_i, self.X_background[k])))
                     elif self.metric == "cosine":
                         background_similarities.append(
-                            (k, background_author, 1 - cosine(vec_i, self.X_background[k])))
+                            (k, background_author, cosine(vec_i, self.X_background[k])))
                     elif self.metric == "euclidean":
                         background_similarities.append(
                             (k, background_author, euclidean(vec_i, self.X_background[k])))
@@ -389,7 +389,7 @@ class Verification(base.BaseEstimator):
                         elif self.metric == "manhattan":
                             score = cityblock(truncated_X[idx], vec_i_trunc)
                         elif self.metric == "cosine":
-                            score = 1 - cosine(truncated_X[idx], vec_i_trunc)
+                            score = cosine(truncated_X[idx], vec_i_trunc)
                         elif self.metric == "euclidean":
                             score = euclidean(truncated_X[idx], vec_i_trunc)
                         if most_similar is None or score < most_similar:
@@ -402,7 +402,7 @@ class Verification(base.BaseEstimator):
                     elif self.metric == "manhattan":
                         target_distance = cityblock(vec_i_trunc, vec_j_trunk)
                     elif self.metric == "cosine":
-                        target_distance = 1 - cosine(vec_i_trunc, vec_j_trunk)
+                        target_distance = cosine(vec_i_trunc, vec_j_trunk)
                     elif self.metric == "euclidean":
                         target_distance = euclidean(vec_i_trunc, vec_j_trunk)
                     if target_distance < most_similar:
