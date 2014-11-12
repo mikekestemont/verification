@@ -260,19 +260,15 @@ class Verification(base.BaseEstimator):
         for i in range(n_devel_samples):
             for j in range(n_devel_samples):
                 # don't pair identical samples:
-                if i == j:
-                    continue
-                vec_i, title_i, author_i = self.X_devel[
-                    i], devel_titles[i], devel_authors[i]
-                vec_j, title_j, author_j = self.X_devel[
-                    j], devel_titles[j], devel_authors[j]
-                # don't pair samples from the same text:
-                if title_i.split("_")[0] == title_j.split("_")[0]:
-                    continue
-                if author_i == author_j:
-                    same_author_pairs.append((i, j))
-                else:
-                    diff_author_pairs.append((i, j))
+                if i != j:
+                    vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
+                    vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
+                    # don't pair samples from the same text:
+                    if title_i.split("_")[0] != title_j.split("_")[0]:
+                        if author_i == author_j:
+                            same_author_pairs.append((i, j))
+                        else:
+                            diff_author_pairs.append((i, j))
         # if nr_test_pairs is specified, randomly select n same_author_pairs
         # and n diff_author_pairs:
         self.test_pairs = []
