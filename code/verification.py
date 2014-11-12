@@ -27,7 +27,7 @@ import seaborn as sns
 from plm import ParsimoniousLM
 
 logging.basicConfig(
-    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 
 Dataset = namedtuple('Dataset', ['texts', 'titles', 'authors'])
 
@@ -79,7 +79,7 @@ except:
 
 DISTANCE_METRICS = {"divergence": divergence,
                     "minmax": minmax,
-                    "cityblock": cityblock,
+                    "manhattan": cityblock,
                     "cosine": cosine,
                     "euclidean": euclidean}
 
@@ -117,7 +117,7 @@ class Verification(base.BaseEstimator):
                  n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_imposters,
                  nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None, 
-                 plm_lambda=0.1, plm_iterations=100):
+                 plm_lambda=0.5, plm_iterations=100):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
@@ -170,7 +170,7 @@ class Verification(base.BaseEstimator):
                 # extract std-weights from background texts:
                 delta_weights = StandardScaler().fit(self.X_background).std_
                 self.X_background = np.divide(self.X_background, delta_weights)
-                self.X_devel = np.divide(self.X_background, delta_weights)
+                self.X_devel = np.divide(self.X_devel, delta_weights)
         elif self.vector_space_model == "idf":
             if self.feature_type == "char":
                 self.analyzer = partial(analyzer, n=self.feature_ngram_range)
@@ -195,17 +195,17 @@ class Verification(base.BaseEstimator):
             self.X_devel = X[len(background_texts):]
         elif self.vector_space_model == "plm":
             all_texts = background_texts + devel_texts
-            plm = ParsimoniousLM(all_texts, self.plm_lambda)
+            self.plm = ParsimoniousLM(all_texts, self.plm_lambda)
             self.most_frequent_feature_indices = np.asarray(
-                plm.vectorizer.transform(all_texts).sum(0).argsort())[0][-self.n_features:]
-            plm.fit(all_texts, iterations=self.plm_iterations)
-            _, models = zip(*plm.fitted_)
-            plm.pc = plm.pc[self.most_frequent_feature_indices]
-            self.X = X = np.array(models)
-            X = X[:, self.most_frequent_feature_indices]
-            self.X_background = X[:len(background_texts)]
-            self.X_devel = X[len(background_texts):]
-            #self.metric = lambda q, d: -plm.cross_entropy(q, d)
+                self.plm.vectorizer.transform(all_texts).sum(0).argsort())[0][-self.n_features:]
+            self.plm.fit(all_texts, iterations=self.plm_iterations)
+            _, models = zip(*self.plm.fitted_)
+            self.plm.pc = self.plm.pc[self.most_frequent_feature_indices]
+            self.X = np.exp(np.array(models)) # convert to probabilities
+            self.X = self.X[:, self.most_frequent_feature_indices]
+            self.X_background = self.X[:len(background_texts)]
+            self.X_devel = self.X[len(background_texts):]
+            # self.metric = lambda q, d: self.plm.cross_entropy(q, d)
         return self
 
     def plot_weight_properties(self):
@@ -323,13 +323,13 @@ class Verification(base.BaseEstimator):
             for i, j in (self.test_pairs):
                 vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
                 vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
-                logging.info("Predicting scores for %s - %s" % (devel_authors[i], devel_authors[j]))
+                logging.info("Predicting scores for %s - %s" % (author_i, author_j))
                 # get impostors from the background corpus:
                 background_similarities = []
                 for k in range(n_background_samples):
                     background_author = background_authors[k]
                     # make sure the background corpus isn't polluted (this step
-                    # is supervised...):
+                    # is supervised...): #FK: or is this completely unrealistic????
                     if background_author not in (author_i, author_j):
                         background_similarities.append(
                             (k, background_author, self.metric(vec_i, self.X_background[k])))
@@ -346,21 +346,23 @@ class Verification(base.BaseEstimator):
                 rand_imposter_indices = self.rnd.randint(
                     0, m_X.shape[0], size=self.n_actual_imposters)
                 truncated_X = m_X[rand_imposter_indices, :]
+                print "truncated shape=%s:%s" % truncated_X.shape
                 ###############################################################
                 for k in range(self.iterations):
                     # select random features:
                     rand_feat_indices = self.rnd.randint(
                         0, truncated_X.shape[1], size=self.rand_features)
-                    truncated_X = truncated_X[:, rand_feat_indices]
+                    truncated_X_rand = truncated_X[:, rand_feat_indices]
+                    print "random truncated shape=%s:%s" % truncated_X_rand.shape
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
-                    most_similar = min(self.metric(truncated_X[idx], vec_i_trunc) for idx in range(n_actual_imposters))
+                    most_similar = min(self.metric(vec_i_trunc, truncated_X_rand[idx]) for idx in range(n_actual_imposters))
                     target_distance = self.metric(vec_i_trunc, vec_j_trunk)
                     if target_distance < most_similar:
                         targets += 1.0
                     sigmas[k] = targets / (k + 1.0)
-                self.scores.append(("same_author" if devel_authors[i] == devel_authors[j] else "diff_author", sigmas.mean()))
+                self.scores.append(("same_author" if author_i == author_j else "diff_author", sigmas.mean()))
                 logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (
-                    devel_titles[i], devel_authors[i], devel_titles[j], devel_authors[j], sigmas.mean()))
+                    devel_titles[i], author_i, devel_titles[j], author_j, sigmas.mean()))
         return self.scores
 
     verify = predict
@@ -462,9 +464,11 @@ if __name__ == '__main__':
     # nr of randomly selected pairs (both same and diff), or None: all texts
     # will be paired exhaustively
     nr_test_pairs = 1000
-    n_features = 5000
+    n_features = 8000
     random_prop = 0.5
-    iterations = 10
+    plm_lambda = 0.1
+    plm_iterations = 10
+    iterations = 100
     text_cutoff = 50000
     feature_type = "word"
     feature_ngram_range = (1, 1)  # (1,1) # word: 4
@@ -482,7 +486,9 @@ if __name__ == '__main__':
                                 nr_same_author_test_pairs=nr_same_author_test_pairs,
                                 nr_diff_author_test_pairs=nr_diff_author_test_pairs,
                                 nr_test_pairs=nr_test_pairs,
-                                random_seed=1096)
+                                random_seed=1096, 
+                                plm_lambda=plm_lambda, 
+                                plm_iterations=plm_iterations)
     background_dataset = prepare_corpus(
         dirname=sys.argv[1], text_cutoff=text_cutoff)
     devel_dataset = prepare_corpus(
