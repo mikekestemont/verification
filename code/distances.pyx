@@ -12,7 +12,6 @@ cdef inline double square(double i): return i*i
 
 @cython.boundscheck(False)
 def minmax(np.ndarray[DTYPE_t, ndim=1] a_vec, np.ndarray[DTYPE_t, ndim=1] b_vec):
-    assert a_vec.dtype == DTYPE and b_vec.dtype == DTYPE
     cdef double mins = 0.0
     cdef double maxs = 0.0
     cdef unsigned int i
