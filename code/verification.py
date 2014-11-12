@@ -24,6 +24,8 @@ matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+from plm import ParsimoniousLM
+
 logging.basicConfig(
     format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
@@ -80,7 +82,7 @@ DISTANCE_METRICS = {"divergence": divergence,
                     "cityblock": cityblock,
                     "cosine": cosine,
                     "euclidean": euclidean}
-
+                    
 def prepare_corpus(dirname, text_cutoff):
     underscore = re.compile(r'\_')
     authors, titles, texts = [], [], []
@@ -114,7 +116,8 @@ class Verification(base.BaseEstimator):
     def __init__(self, n_features, random_prop, sample, metric, text_cutoff,
                  n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_imposters,
-                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None):
+                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None, 
+                 plm_lambda=0.5, plm_iterations=100):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
@@ -122,6 +125,8 @@ class Verification(base.BaseEstimator):
         if vector_space_model not in ("idf", "tf", "std", "plm"):
             raise ValueError("Vector space model `%s` is not supported." % vector_space_model)
         self.vector_space_model = vector_space_model
+        self.plm_lambda = plm_lambda
+        self.plm_iterations = plm_iterations
         self.rnd = np.random.RandomState(random_seed)
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
@@ -189,7 +194,15 @@ class Verification(base.BaseEstimator):
             self.X_background = X[:len(background_texts)]
             self.X_devel = X[len(background_texts):]
         elif self.vector_space_model == "plm":
-            raise NotImplementedError("Plm vector space coming soon...")
+            plm = ParsimoniousLM(all_texts, self.plm_lambda)
+            self.most_frequent_feature_indices = np.asarray(
+                plm.vectorizer.fit_transform(all_texts).sum(0).argsort())[0][-self.n_features:]
+            plm.fit(all_texts, iterations=self.plm_iterations)
+            _, models = zip(*plm.fitted_)
+            X = np.array(models)
+            X = X[:, self.most_frequent_feature_indices]
+            self.X_background = X[:len(background_texts)]
+            self.X_devel = X[len(background_texts):]
         return self
 
     def plot_weight_properties(self):
