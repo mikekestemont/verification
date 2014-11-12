@@ -115,17 +115,20 @@ class Verification(base.BaseEstimator):
                  feature_type, feature_ngram_range, m_potential_imposters,
                  nr_same_author_test_pairs, nr_diff_author_test_pairs):
         self.sample = sample
-        assert metric in (
-            "divergence", "minmax", "manhattan", "cosine", "euclidean")
+        if metric not in (
+            "divergence", "minmax", "manhattan", "cosine", "euclidean"):
+            raise ValueError("Metric `%s` is not supported." % metric)
         self.metric = metric
-        assert vector_space_model in ("idf", "tf", "std", "plm")
+        if vector_space_model not in ("idf", "tf", "std", "plm"):
+            raise ValueError("Vector space model `%s` is not supported." % vector_space_model)
         self.vector_space_model = vector_space_model
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
         self.n_actual_imposters = n_actual_imposters
         self.m_potential_imposters = m_potential_imposters
         self.iterations = iterations
-        assert feature_type in ("word", "char")
+        if feature_type not in ("word", "char"):
+            raise ValueError("Feature type `%s` is not supported." % feature_type)
         self.feature_type = feature_type
         self.feature_ngram_range = feature_ngram_range
         self.nr_same_author_test_pairs = nr_same_author_test_pairs
@@ -189,6 +192,11 @@ class Verification(base.BaseEstimator):
         return self
 
     def plot_weight_properties(self):
+        # why is this a method of the verification class? It doesn't use any
+        # of its function, only variables which can be passed to a seperate
+        # function. Perhaps some more general plotting library. ALSO: make sure
+        # functions are no longer than 20 lines or else they become rather 
+        # unreadable
         logging.info("Calculating weight properties.")
         # get delta weights:
         self.background_dataset = background_dataset
