@@ -273,7 +273,7 @@ class Verification(base.BaseEstimator):
             # randomly select n pairs from all pairs
             self.test_pairs = same_author_pairs + diff_author_pairs
             self.rnd.shuffle(self.test_pairs)
-            self.test_pairs = rnd.sample(self.test_pairs, self.nr_test_pairs)
+            self.test_pairs = self.rnd.sample(self.test_pairs, self.nr_test_pairs)
         elif self.nr_same_author_test_pairs and self.nr_diff_author_test_pairs:
             # randomly select n different author pairs and m same author pairs
             self.rnd.shuffle(same_author_pairs)
