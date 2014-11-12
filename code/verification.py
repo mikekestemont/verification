@@ -54,13 +54,13 @@ except:
 
     @jit('float64(float64[:],float64[:])')
     def minmax(a, b):
-        # minmax (ruzicka) by Koppel & Winter
+        # minmax (ruzicka) by Koppel & Winter, but distance
         mins = 0.0
         maxs = 0.0
         for i in range(a.shape[0]):
             mins += min(a[i], b[i])
             maxs += max(a[i], b[i])
-        return mins / maxs
+        return 1-mins/maxs
 
     @jit('float64(float64[:],float64[:])')
     def divergence(a, b):
