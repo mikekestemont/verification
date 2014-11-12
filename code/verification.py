@@ -493,16 +493,7 @@ class Verification(base.BaseEstimator):
         print(
             "f1: " + str(round(best_f1[0], 2)) + " @thresholds=" + str(best_f1[1]))
         sns.plt.legend(loc=0)
-        if self.metric == "divergence":
-            sns.plt.title("Divergence")
-        elif self.metric == "manhattan":
-            sns.plt.title("Manhattan")
-        elif self.metric == "cosine":
-            sns.plt.title("Cosine")
-        elif self.metric == "euclidean":
-            sns.plt.title("Euclidean")
-        elif self.metric == "minmax":
-            sns.plt.title("Minmax")
+        sns.plt.title(self.metric.capitalize())
         sns.plt.xlabel('threshold', fontsize=7)
         sns.plt.xlim(0, 1)
         sns.plt.savefig("curves.pdf")
