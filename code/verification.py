@@ -313,23 +313,19 @@ class Verification(base.BaseEstimator):
             for i, j in (self.test_pairs):
                 vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
                 vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
-                logging.info("Predicting scores for %s - %s" %
-                             (devel_authors[i], devel_authors[j]))
+                logging.info("Predicting scores for %s - %s" % (devel_authors[i], devel_authors[j]))
                 # get impostors from the background corpus:
                 background_similarities = []
                 for k in range(n_background_samples):
                     background_author = background_authors[k]
                     # make sure the background corpus isn't polluted (this step
                     # is supervised...):
-                    if background_author in (author_i, author_j):
-                        continue
-                    background_similarities.append(
-                        (k, background_author, self.metric(vec_i, self.X_background[k])))
-                background_similarities.sort(
-                    key=lambda s: s[-1], reverse=False)
+                    if background_author not in (author_i, author_j):
+                        background_similarities.append(
+                            (k, background_author, self.metric(vec_i, self.X_background[k])))
+                background_similarities.sort(key=lambda s: s[-1])
                 # select m potential imposters
-                m_indexes, m_imposters, _ = zip(
-                    *background_similarities[:self.m_potential_imposters])
+                m_indexes, m_imposters, _ = zip(*background_similarities[:self.m_potential_imposters])
                 m_X = self.X_background[list(m_indexes)]
                 # start the verification sampling:
                 targets = 0.0
