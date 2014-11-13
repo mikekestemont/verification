@@ -1,0 +1,45 @@
+# Configuration file for verification system
+
+[datasets]
+background_dataset_dir = ../data/du_essays
+devel_dataset_dir = ../data/du_essays
+
+[impostors]
+# whether or not to sample from author and features
+sample = False
+m_potential_impostors = 30
+n_actual_impostors = 5
+# proportion of randomly (0 <= float <= 1)
+random_prop = 0.5
+iterations = 100
+
+[features]
+# distance metric should be one of: "minmax", "divergence", "manhattan", "cosine", "euclidean":
+metric = euclidean
+# space should be one of: "idf", "tf", "std", "plm"
+vector_space_model = tf
+# type should be "word" or "char"
+feature_type = word
+# range for ngram extraction. if feature_type = "char", only max will be considered
+feature_ngram_min = 1
+feature_ngram_max = 1
+# integer for vocabulary truncation
+n_features = 50000
+# integer: nr of words to texts should be truncated (to normalize text length)
+text_cutoff = 100000
+
+[evaluation]
+random_seed = 2014
+# if not None, we sample n same_author_pairs and n
+# diff_author_pairs
+nr_same_author_test_pairs = 0
+nr_diff_author_test_pairs = 0
+# nr of randomly selected pairs (both same and diff), or None: all texts
+# will be paired exhaustively
+nr_test_pairs = 20000
+    
+[plm]
+# float for lambda
+plm_lambda = 0.1
+# int for iterations for plm
+plm_iterations = 10
