@@ -15,16 +15,16 @@ iterations = 100
 
 [features]
 # distance metric should be one of: "minmax", "divergence", "manhattan", "cosine", "euclidean":
-metric = minmax
+metric = euclidean
 # space should be one of: "idf", "tf", "std", "plm"
-vector_space_model = idf
+vector_space_model = tf
 # type should be "word" or "char"
 feature_type = word
 # range for ngram extraction. if feature_type = "char", only max will be considered
 feature_ngram_min = 1
 feature_ngram_max = 1
 # integer for vocabulary truncation
-n_features = 5000
+n_features = 50000
 # integer: nr of words to texts should be truncated (to normalize text length)
 text_cutoff = 100000
 

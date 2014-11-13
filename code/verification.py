@@ -207,7 +207,6 @@ class Verification(base.BaseEstimator):
             self.X = self.X[:, self.most_frequent_feature_indices]
             self.X_background = self.X[:len(background_texts)]
             self.X_devel = self.X[len(background_texts):]
-            # self.metric = lambda q, d: self.plm.cross_entropy(q, d)
         return self
 
     def plot_weight_properties(self):
