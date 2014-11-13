@@ -144,6 +144,7 @@ class Verification(base.BaseEstimator):
         self.nr_diff_author_test_pairs = nr_diff_author_test_pairs
         self.nr_test_pairs = nr_test_pairs
         self.text_cutoff = text_cutoff
+        self.make_plots = False
 
     def fit(self, background_dataset, devel_dataset):
         """
@@ -253,25 +254,26 @@ class Verification(base.BaseEstimator):
         if not os.path.isdir("plots"):
             os.mkdir("plots")
         # set seaborn params:
-        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 'axes.titlesize': 3, "font.family": "sans-serif",
-              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 'ylabel.minor.size': 0.3,
-              'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans'], }
-        sns.set_style("darkgrid", rc=rc)
-        sns.plt.xlabel('Rank', fontsize=7)
-        sns.plt.ylabel('Frequency mass', fontsize=7)
-        sns.plt.plot(properties[-1], properties[0])
-        sns.plt.savefig("plots/freq_mass.pdf")
-        sns.plt.clf()
-        sns.plt.xlabel('Rank', fontsize=7)
-        sns.plt.ylabel('Standard deviation', fontsize=7)
-        sns.plt.plot(properties[-1], properties[1])
-        sns.plt.savefig("plots/delta_std.pdf")
-        sns.plt.clf()
-        sns.plt.xlabel('Rank', fontsize=7)
-        sns.plt.ylabel('If-Idf', fontsize=7)
-        sns.plt.plot(properties[-1], properties[2])
-        sns.plt.savefig("plots/tfidf.pdf")
-        sns.plt.clf()
+        if self.make_plots:
+            rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 'axes.titlesize': 3, "font.family": "sans-serif",
+                  'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 'ylabel.minor.size': 0.3,
+                  'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans'], }
+            sns.set_style("darkgrid", rc=rc)
+            sns.plt.xlabel('Rank', fontsize=7)
+            sns.plt.ylabel('Frequency mass', fontsize=7)
+            sns.plt.plot(properties[-1], properties[0])
+            sns.plt.savefig("plots/freq_mass.pdf")
+            sns.plt.clf()
+            sns.plt.xlabel('Rank', fontsize=7)
+            sns.plt.ylabel('Standard deviation', fontsize=7)
+            sns.plt.plot(properties[-1], properties[1])
+            sns.plt.savefig("plots/delta_std.pdf")
+            sns.plt.clf()
+            sns.plt.xlabel('Rank', fontsize=7)
+            sns.plt.ylabel('If-Idf', fontsize=7)
+            sns.plt.plot(properties[-1], properties[2])
+            sns.plt.savefig("plots/tfidf.pdf")
+            sns.plt.clf()
 
     def predict(self):
         logging.info("Verification started.")
@@ -439,60 +441,64 @@ class Verification(base.BaseEstimator):
                 print("\tRecall: {0}".format(recall))
         # plot precision recall-curve
         # set param:
-        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
-              'axes.titlesize': 3, "font.family": "sans-serif",
-              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3,
-              'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans']}
-        sns.set_style("darkgrid", rc=rc)
-        sns.set_style("darkgrid", rc=rc)
-        sns.plt.xlabel('recall', fontsize=7)
-        sns.plt.ylabel('precision', fontsize=7)
-        sns.plt.xlim(0, 1)
-        sns.plt.ylim(0, 1)
-        sns.plt.plot(
-            [prec for prec, _ in precisions], [rec for rec, _ in recalls])
+        if self.make_plots:
+            rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
+                  'axes.titlesize': 3, "font.family": "sans-serif",
+                  'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3,
+                  'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans']}
+            sns.set_style("darkgrid", rc=rc)
+            sns.set_style("darkgrid", rc=rc)
+            sns.plt.xlabel('recall', fontsize=7)
+            sns.plt.ylabel('precision', fontsize=7)
+            sns.plt.xlim(0, 1)
+            sns.plt.ylim(0, 1)
+            sns.plt.plot(
+                [prec for prec, _ in precisions], [rec for rec, _ in recalls])
+
         with open(self.metric.__name__ + ".txt", "wt") as F:
             for prec, rec in zip(precisions, recalls):
                 F.write(str(prec[0]) + "\t" + str(rec[0]) + "\n")
-        sns.plt.savefig("prec_rec.pdf")
-        sns.plt.clf()
-        # now plot kernel density estimate, using a gaussian kernel:
-        sns.set_style("darkgrid", rc=rc)
-        fig, ax_left = sns.plt.subplots()
-        same_author_densities = np.asarray(
-            [score for cat, score in self.scores if cat == "same_author"])
-        diff_author_densities = np.asarray(
-            [score for cat, score in self.scores if cat == "diff_author"])
-        c1, c2, c3, c4, c5, c6 = sns.color_palette("Set1")[:6]
-        sns.plt.xlim(0, 1)
-        sns.kdeplot(diff_author_densities, shade=True,
-                    label="different author pairs", legend=False, c=c1)
-        sns.kdeplot(same_author_densities, shade=True,
-                    label="same author pairs", legend=False, c=c2)
-        sns.plt.legend(loc=0)
-        sns.plt.savefig("densities.pdf")
-        sns.plt.clf()
-        fig, ax_left = sns.plt.subplots()
-        sns.set_style("darkgrid", rc=rc)
-        sns.plt.plot(
-            [s for _, s in f1_scores], [f for f, _ in f1_scores], label="f1 score", c=c1)
-        sns.plt.plot([s for _, s in precisions], [
-                     p for p, _ in precisions], label="precision", c=c2)
-        sns.plt.plot(
-            [s for _, s in recalls], [r for r, _ in recalls], label="recall", c=c3)
-        sns.plt.ylim(0, 1.005)
-        # optimal best_f1 = max(f1_scores, key=itemgetter(0))
-        # plot dev F1:
-        max_y = sns.plt.axis()[3]
-        sns.plt.axvline(x=best_f1_dev[1], linewidth=1, c=c4)
-        sns.plt.text(
-            best_f1_dev[1], max_y, "f1: " + str(round(best_f1_dev[0], 2)), rotation=0, fontsize=5)
-        sns.plt.legend(loc=0)
-        sns.plt.title(self.metric.__name__.capitalize())
-        sns.plt.xlabel('threshold', fontsize=7)
-        sns.plt.xlim(0, 1)
-        sns.plt.savefig("curves.pdf")
-        sns.plt.clf()
+
+        if self.make_plots:
+            sns.plt.savefig("prec_rec.pdf")
+            sns.plt.clf()
+            # now plot kernel density estimate, using a gaussian kernel:
+            sns.set_style("darkgrid", rc=rc)
+            fig, ax_left = sns.plt.subplots()
+            same_author_densities = np.asarray(
+                [score for cat, score in self.scores if cat == "same_author"])
+            diff_author_densities = np.asarray(
+                [score for cat, score in self.scores if cat == "diff_author"])
+            c1, c2, c3, c4, c5, c6 = sns.color_palette("Set1")[:6]
+            sns.plt.xlim(0, 1)
+            sns.kdeplot(diff_author_densities, shade=True,
+                        label="different author pairs", legend=False, c=c1)
+            sns.kdeplot(same_author_densities, shade=True,
+                        label="same author pairs", legend=False, c=c2)
+            sns.plt.legend(loc=0)
+            sns.plt.savefig("densities.pdf")
+            sns.plt.clf()
+            fig, ax_left = sns.plt.subplots()
+            sns.set_style("darkgrid", rc=rc)
+            sns.plt.plot(
+                [s for _, s in f1_scores], [f for f, _ in f1_scores], label="f1 score", c=c1)
+            sns.plt.plot([s for _, s in precisions], [
+                p for p, _ in precisions], label="precision", c=c2)
+            sns.plt.plot(
+                [s for _, s in recalls], [r for r, _ in recalls], label="recall", c=c3)
+            sns.plt.ylim(0, 1.005)
+            # optimal best_f1 = max(f1_scores, key=itemgetter(0))
+            # plot dev F1:
+            max_y = sns.plt.axis()[3]
+            sns.plt.axvline(x=best_f1_dev[1], linewidth=1, c=c4)
+            sns.plt.text(
+                best_f1_dev[1], max_y, "f1: " + str(round(best_f1_dev[0], 2)), rotation=0, fontsize=5)
+            sns.plt.legend(loc=0)
+            sns.plt.title(self.metric.__name__.capitalize())
+            sns.plt.xlabel('threshold', fontsize=7)
+            sns.plt.xlim(0, 1)
+            sns.plt.savefig("curves.pdf")
+            sns.plt.clf()
         logging.warn("f1: %s" % f1)
         return best_f1_dev, f1, precision, recall
 
