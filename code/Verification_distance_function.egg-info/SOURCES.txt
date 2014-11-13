@@ -1,0 +1,7 @@
+distances.pyx
+setup.py
+Verification_distance_function.egg-info/PKG-INFO
+Verification_distance_function.egg-info/SOURCES.txt
+Verification_distance_function.egg-info/dependency_links.txt
+Verification_distance_function.egg-info/requires.txt
+Verification_distance_function.egg-info/top_level.txt

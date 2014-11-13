@@ -9,6 +9,7 @@ import random
 import sys
 import math
 import re
+import ConfigParser
 from collections import defaultdict, namedtuple
 from functools import partial
 from itertools import combinations, islice
@@ -115,10 +116,10 @@ def analyzer(words, n):
 class Verification(base.BaseEstimator):
 
     def __init__(self, n_features, random_prop, sample, metric, text_cutoff,
-                 n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
-                 feature_type, feature_ngram_range, m_potential_imposters,
-                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None, 
-                 plm_lambda=0.5, plm_iterations=100):
+                 n_actual_impostors, iterations, nr_test_pairs, vector_space_model,
+                 feature_type, feature_ngram_range, m_potential_impostors,
+                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed, 
+                 plm_lambda, plm_iterations):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
@@ -131,8 +132,8 @@ class Verification(base.BaseEstimator):
         self.rnd = np.random.RandomState(random_seed)
         self.n_features = n_features
         self.rand_features = int(random_prop * n_features)
-        self.n_actual_imposters = n_actual_imposters
-        self.m_potential_imposters = m_potential_imposters
+        self.n_actual_impostors = n_actual_impostors
+        self.m_potential_impostors = m_potential_impostors
         self.iterations = iterations
         if feature_type not in ("word", "char"):
             raise ValueError("Feature type `%s` is not supported." % feature_type)
@@ -338,23 +339,23 @@ class Verification(base.BaseEstimator):
                 background_similarities.sort(key=lambda s: s[-1])
 
                 logging.debug("Background authors: %s" % ', '.join(
-                    a for _, a, _ in background_similarities[:self.m_potential_imposters]))
+                    a for _, a, _ in background_similarities[:self.m_potential_impostors]))
 
                 logging.debug("Test pair: %s, %s" % (author_i, author_j))
 
-                # select m potential imposters # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE 
+                # select m potential impostors # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE 
                 # `background_similarities` MAY CONTAIN DUPLICATE AUTHORS!
-                m_indexes, m_imposters, _ = zip(*background_similarities[:self.m_potential_imposters])
+                m_indexes, m_impostors, _ = zip(*background_similarities[:self.m_potential_impostors])
                 m_X = self.X_background[list(m_indexes)]
                 # start the verification sampling:
                 targets = 0.0
                 sigmas = np.zeros(self.iterations)
                 ##################### put this inside loop??? #################
                 # randomly select n_actual_impostors from
-                # m_potential_imposters:
-                rand_imposter_indices = self.rnd.randint(
-                    0, m_X.shape[0], size=self.n_actual_imposters)
-                truncated_X = m_X[rand_imposter_indices, :]
+                # m_potential_impostors:
+                rand_impostor_indices = self.rnd.randint(
+                    0, m_X.shape[0], size=self.n_actual_impostors)
+                truncated_X = m_X[rand_impostor_indices, :]
                 logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                 ###############################################################
                 for k in range(self.iterations):
@@ -364,7 +365,7 @@ class Verification(base.BaseEstimator):
                     truncated_X_rand = truncated_X[:, rand_feat_indices]
     #                logging.debug("random truncated shape=%s:%s" % truncated_X_rand.shape)
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
-                    most_similar = min(self.metric(vec_i_trunc, truncated_X_rand[idx]) for idx in range(n_actual_imposters))
+                    most_similar = min(self.metric(vec_i_trunc, truncated_X_rand[idx]) for idx in range(n_actual_impostors))
                     target_distance = self.metric(vec_i_trunc, vec_j_trunk)
                     if (author_j == author_i):
                         logging.debug("NN: %s, Target: %s" % (most_similar, target_distance))
@@ -408,7 +409,7 @@ class Verification(base.BaseEstimator):
                     recalls.append((recall, threshold))
             except:
                 continue
-        print max(f1_scores)
+        print(max(f1_scores))
         # plot precision recall-curve
         sns.set_style("darkgrid", rc=rc)
         sns.plt.xlabel('recall', fontsize=7)
@@ -464,33 +465,41 @@ class Verification(base.BaseEstimator):
         sns.plt.clf()
 
 if __name__ == '__main__':
-    sample = False  # whether or not to sample from author and features
-    # one of: "minmax", "divergence", "manhattan", "cosine", "euclidean" #
-    # distance metric to use
-    metric = "minmax"
-    vector_space_model = "plm"  # one of: "idf", "tf", "std", "plm"
-    m_potential_imposters = 30
-    n_actual_imposters = 5
-    # or None, if specified we sample n same_author_pairs and n
-    # diff_author_pairs
-    nr_same_author_test_pairs = None
-    nr_diff_author_test_pairs = None
-    # nr of randomly selected pairs (both same and diff), or None: all texts
-    # will be paired exhaustively
-    nr_test_pairs = 1000
-    n_features = 5000
-    random_prop = 0.5
-    plm_lambda = 0.1
-    plm_iterations = 10
-    iterations = 100
-    text_cutoff = None
-    feature_type = "word"
-    feature_ngram_range = (1, 1)  # (1,1) # word: 4
+    # parse config file passed via cmd line:
+    config_path = sys.argv[1]
+    config = ConfigParser.ConfigParser()
+    config.read("config.txt")
+    # set options
+    background_dataset_dir = config.get('datasets', 'background_dataset_dir')
+    devel_dataset_dir = config.get('datasets', 'devel_dataset_dir')
+    sample = config.getboolean('impostors', 'sample')
+    m_potential_impostors = config.getint('impostors', 'm_potential_impostors')
+    n_actual_impostors = config.getint('impostors', 'n_actual_impostors')
+    random_prop = config.getfloat('impostors', 'random_prop')
+    iterations = config.getint('impostors', 'iterations')
+    metric = config.get("features", "metric")
+    vector_space_model = config.get("features", "vector_space_model")
+    feature_type = config.get("features", "feature_type")
+    feature_ngram_min = config.getint("features", "feature_ngram_min")
+    feature_ngram_max = config.getint("features", "feature_ngram_max")
+    feature_ngram_range = (feature_ngram_min, feature_ngram_max)
+    if feature_type == "char":
+        feature_ngram_range = feature_ngram_max
+    n_features = config.getint("features", "n_features")
+    text_cutoff = config.getint("features", "text_cutoff")
+    vector_space_model = config.get("features", "vector_space_model")
+    random_seed = config.getint("evaluation", "random_seed")
+    nr_same_author_test_pairs = config.getint("evaluation", "nr_same_author_test_pairs")
+    nr_diff_author_test_pairs = config.getint("evaluation", "nr_diff_author_test_pairs")
+    nr_test_pairs = config.getint("evaluation", "nr_test_pairs")
+    plm_lambda = config.getfloat('plm', 'plm_lambda')
+    plm_iterations = config.getint('plm', 'plm_iterations')
+    # start the verification
     verification = Verification(sample=sample,
                                 vector_space_model=vector_space_model,
                                 metric=metric,
-                                n_actual_imposters=n_actual_imposters,
-                                m_potential_imposters=m_potential_imposters,
+                                n_actual_impostors=n_actual_impostors,
+                                m_potential_impostors=m_potential_impostors,
                                 iterations=iterations,
                                 text_cutoff=text_cutoff,
                                 n_features=n_features,
@@ -500,13 +509,13 @@ if __name__ == '__main__':
                                 nr_same_author_test_pairs=nr_same_author_test_pairs,
                                 nr_diff_author_test_pairs=nr_diff_author_test_pairs,
                                 nr_test_pairs=nr_test_pairs,
-                                random_seed=1096, 
+                                random_seed=random_seed, 
                                 plm_lambda=plm_lambda, 
                                 plm_iterations=plm_iterations)
     background_dataset = prepare_corpus(
-        dirname=sys.argv[1], text_cutoff=text_cutoff)
+        dirname=background_dataset_dir, text_cutoff=text_cutoff)
     devel_dataset = prepare_corpus(
-        dirname=sys.argv[2], text_cutoff=text_cutoff)
+        dirname=devel_dataset_dir, text_cutoff=text_cutoff)
     verification.fit(
         background_dataset=background_dataset, devel_dataset=devel_dataset)
     verification.plot_weight_properties()
