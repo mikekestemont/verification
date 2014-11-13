@@ -30,6 +30,7 @@ def experiment(params):
                                 random_seed=random_seed,
                                 plm_lambda=plm_lambda,
                                 plm_iterations=plm_iterations)
+    print verification
 
     verification.fit(
         background_dataset=background_dataset, devel_dataset=devel_dataset)
