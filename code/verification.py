@@ -2,7 +2,7 @@ import glob
 import logging
 
 logging.basicConfig(
-    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
+    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.WARN)
 
 import os
 import random
@@ -166,6 +166,9 @@ class Verification(base.BaseEstimator):
             # fit vectorizer (with truncated vocabulary) on background corpus:
             self.X_background = self.vectorizer.fit_transform(
                 background_texts).toarray()
+            _, n_features = self.X_background.shape
+            if n_features < self.n_features:
+                self.n_features = n_features
             # apply vectorizer to devel corpus (get matrix of unnormalized
             # relative term frequencies)
             self.X_devel = self.vectorizer.transform(devel_texts).toarray()
@@ -184,6 +187,9 @@ class Verification(base.BaseEstimator):
             # temporarily join both sets to determine feature universe:
             all_texts = background_texts + devel_texts
             X = self.vectorizer.fit_transform(all_texts)
+            _, n_features = X.shape
+            if n_features < self.n_features:
+                self.n_features = n_features
             # select top-frequency features:
             self.most_frequent_feature_indices = np.asarray(
                 X.sum(0).argsort())[0][-self.n_features:]
@@ -199,6 +205,9 @@ class Verification(base.BaseEstimator):
         elif self.vector_space_model == "plm":
             all_texts = background_texts + devel_texts
             self.plm = ParsimoniousLM(all_texts, self.plm_lambda)
+            n_features = self.plm.pc.shape[0]
+            if n_features < self.n_features:
+                self.n_features = n_features
             self.most_frequent_feature_indices = np.asarray(
                 self.plm.vectorizer.transform(all_texts).sum(0).argsort())[0][-self.n_features:]
             self.plm.fit(all_texts, iterations=self.plm_iterations)
@@ -484,6 +493,7 @@ class Verification(base.BaseEstimator):
         sns.plt.xlim(0, 1)
         sns.plt.savefig("curves.pdf")
         sns.plt.clf()
+        logging.warn("f1: %s" % f1)
         return best_f1_dev, f1, precision, recall
 
 if __name__ == '__main__':
