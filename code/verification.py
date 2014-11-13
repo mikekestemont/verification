@@ -118,7 +118,7 @@ class Verification(base.BaseEstimator):
                  n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_imposters,
                  nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None, 
-                 plm_lambda=0.5, plm_iterations=100):
+                 plm_lambda=0.5, plm_iterations=100, sample_authors=False):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
@@ -130,6 +130,7 @@ class Verification(base.BaseEstimator):
         self.plm_iterations = plm_iterations
         self.rnd = np.random.RandomState(random_seed)
         self.n_features = n_features
+        self.sample_authors = sample_authors
         self.rand_features = int(random_prop * n_features)
         self.n_actual_imposters = n_actual_imposters
         self.m_potential_imposters = m_potential_imposters
@@ -351,12 +352,17 @@ class Verification(base.BaseEstimator):
                 sigmas = np.zeros(self.iterations)
                 ##################### put this inside loop??? #################
                 # randomly select n_actual_impostors from
-                # m_potential_imposters:
-                ###############################################################
-                for k in range(self.iterations):
+                if not self.sample_authors:
                     rand_imposter_indices = self.rnd.randint(
                         m_X.shape[0], size=self.n_actual_imposters)
                     truncated_X = m_X[rand_imposter_indices, :]
+                # m_potential_imposters:
+                ###############################################################
+                for k in range(self.iterations):
+                    if self.sample_authors:
+                        rand_imposter_indices = self.rnd.randint(
+                            m_X.shape[0], size=self.n_actual_imposters)
+                        truncated_X = m_X[rand_imposter_indices, :]
                     # logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                     # select random features:
                     rand_feat_indices = self.rnd.randint(
@@ -467,10 +473,11 @@ if __name__ == '__main__':
     sample = True  # whether or not to sample from author and features
     # one of: "minmax", "divergence", "manhattan", "cosine", "euclidean" #
     # distance metric to use
+    sample_authors = False
     metric = "minmax"
     vector_space_model = "idf"  # one of: "idf", "tf", "std", "plm"
-    m_potential_imposters = 30
-    n_actual_imposters = 5
+    m_potential_imposters = 100
+    n_actual_imposters = 10
     # or None, if specified we sample n same_author_pairs and n
     # diff_author_pairs
     nr_same_author_test_pairs = None
@@ -502,7 +509,8 @@ if __name__ == '__main__':
                                 nr_test_pairs=nr_test_pairs,
                                 random_seed=1096, 
                                 plm_lambda=plm_lambda, 
-                                plm_iterations=plm_iterations)
+                                plm_iterations=plm_iterations
+                                sample_authors=sample_authors)
     background_dataset = prepare_corpus(
         dirname=sys.argv[1], text_cutoff=text_cutoff)
     devel_dataset = prepare_corpus(
