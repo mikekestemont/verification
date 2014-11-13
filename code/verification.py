@@ -96,7 +96,7 @@ def prepare_corpus(dirname, text_cutoff):
             author, title = DUMMY_AUTHORS.next(), os.sep.split(filename)[-1]
         authors.append(author)
         titles.append(title)
-        print(title)
+        logging.info("Reading: %s" % title)
         with open(filename) as infile:
             texts.append(
                 list(islice(tokenize(infile.read(), lowercase=True, deacc=True), 0, text_cutoff)))
@@ -131,6 +131,7 @@ class Verification(base.BaseEstimator):
         self.plm_iterations = plm_iterations
         self.rnd = np.random.RandomState(random_seed)
         self.n_features = n_features
+        self.sample_authors = sample_authors
         self.rand_features = int(random_prop * n_features)
         self.n_actual_impostors = n_actual_impostors
         self.m_potential_impostors = m_potential_impostors
@@ -213,7 +214,7 @@ class Verification(base.BaseEstimator):
         # why is this a method of the verification class? It doesn't use any
         # of its function, only variables which can be passed to a seperate
         # function. Perhaps some more general plotting library. ALSO: make sure
-        # functions are no longer than 20 lines or else they become rather 
+        # functions are no longer than 20 lines or else they become rather
         # unreadable
         logging.info("Calculating weight properties.")
         # get delta weights:
@@ -341,7 +342,6 @@ class Verification(base.BaseEstimator):
                     a for _, a, _ in background_similarities[:self.m_potential_impostors]))
 
                 logging.debug("Test pair: %s, %s" % (author_i, author_j))
-
                 # select m potential impostors # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE 
                 # `background_similarities` MAY CONTAIN DUPLICATE AUTHORS!
                 m_indexes, m_impostors, _ = zip(*background_similarities[:self.m_potential_impostors])
@@ -358,9 +358,14 @@ class Verification(base.BaseEstimator):
                 logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                 ###############################################################
                 for k in range(self.iterations):
+                    if self.sample_authors:
+                        rand_imposter_indices = self.rnd.randint(
+                            m_X.shape[0], size=self.n_actual_imposters)
+                        truncated_X = m_X[rand_imposter_indices, :]
+                    # logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                     # select random features:
                     rand_feat_indices = self.rnd.randint(
-                        0, truncated_X.shape[1], size=self.rand_features)
+                        truncated_X.shape[1], size=self.rand_features)
                     truncated_X_rand = truncated_X[:, rand_feat_indices]
     #                logging.debug("random truncated shape=%s:%s" % truncated_X_rand.shape)
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
