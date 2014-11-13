@@ -7,7 +7,7 @@ config_path = sys.argv[1]
 config = ConfigParser.ConfigParser()
 config.read(config_path)
 
-def experiment(params, background_dataset, devel_dataset):
+def experiment(params):
     (sample, sample_authors, vector_space_model, metric, n_actual_impostors,
      m_potential_impostors, iterations, text_cutoff, n_features, random_prop,
      feature_type, feature_ngram_range, nr_same_author_test_pairs,
