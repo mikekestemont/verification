@@ -1,5 +1,9 @@
 import glob
 import logging
+
+logging.basicConfig(
+    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
+
 import os
 import random
 import sys
@@ -25,9 +29,6 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from plm import ParsimoniousLM
-
-logging.basicConfig(
-    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 
 Dataset = namedtuple('Dataset', ['texts', 'titles', 'authors'])
 
@@ -269,6 +270,7 @@ class Verification(base.BaseEstimator):
         n_background_samples = self.X_background.shape[0]
         n_devel_samples = self.X_devel.shape[0]
         # determine the pairs from devel/test which we would like to verify:
+        # FK: THIS STEP IS SUPERVISED. DO WE REALLY NEED IT?
         same_author_pairs, diff_author_pairs = [], []
         for i in range(n_devel_samples):
             for j in range(n_devel_samples):
@@ -334,7 +336,14 @@ class Verification(base.BaseEstimator):
                         background_similarities.append(
                             (k, background_author, self.metric(vec_i, self.X_background[k])))
                 background_similarities.sort(key=lambda s: s[-1])
-                # select m potential imposters
+
+                logging.debug("Background authors: %s" % ', '.join(
+                    a for _, a, _ in background_similarities[:self.m_potential_imposters]))
+
+                logging.debug("Test pair: %s, %s" % (author_i, author_j))
+
+                # select m potential imposters # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE 
+                # `background_similarities` MAY CONTAIN DUPLICATE AUTHORS!
                 m_indexes, m_imposters, _ = zip(*background_similarities[:self.m_potential_imposters])
                 m_X = self.X_background[list(m_indexes)]
                 # start the verification sampling:
@@ -346,17 +355,19 @@ class Verification(base.BaseEstimator):
                 rand_imposter_indices = self.rnd.randint(
                     0, m_X.shape[0], size=self.n_actual_imposters)
                 truncated_X = m_X[rand_imposter_indices, :]
-                print "truncated shape=%s:%s" % truncated_X.shape
+                logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                 ###############################################################
                 for k in range(self.iterations):
                     # select random features:
                     rand_feat_indices = self.rnd.randint(
                         0, truncated_X.shape[1], size=self.rand_features)
                     truncated_X_rand = truncated_X[:, rand_feat_indices]
-                    print "random truncated shape=%s:%s" % truncated_X_rand.shape
+    #                logging.debug("random truncated shape=%s:%s" % truncated_X_rand.shape)
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
                     most_similar = min(self.metric(vec_i_trunc, truncated_X_rand[idx]) for idx in range(n_actual_imposters))
                     target_distance = self.metric(vec_i_trunc, vec_j_trunk)
+                    if (author_j == author_i):
+                        logging.debug("NN: %s, Target: %s" % (most_similar, target_distance))
                     if target_distance < most_similar:
                         targets += 1.0
                     sigmas[k] = targets / (k + 1.0)
@@ -382,7 +393,10 @@ class Verification(base.BaseEstimator):
         for threshold in np.arange(0.001, 1.001, 0.001):
             preds, true, = [], []
             for category, score in self.scores:
-                preds.append(1 if score <= threshold else 0)
+                if self.sample:
+                    preds.append(1 if score >= threshold else 0)
+                else:
+                    preds.append(1 if score <= threshold else 0)
                 true.append(1 if category == "same_author" else 0)
             f1 = f1_score(preds, true)
             f1_scores.append((f1, threshold))
@@ -464,12 +478,12 @@ if __name__ == '__main__':
     # nr of randomly selected pairs (both same and diff), or None: all texts
     # will be paired exhaustively
     nr_test_pairs = 1000
-    n_features = 8000
+    n_features = 5000
     random_prop = 0.5
     plm_lambda = 0.1
     plm_iterations = 10
     iterations = 100
-    text_cutoff = 50000
+    text_cutoff = None
     feature_type = "word"
     feature_ngram_range = (1, 1)  # (1,1) # word: 4
     verification = Verification(sample=sample,
