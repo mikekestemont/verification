@@ -95,7 +95,7 @@ def prepare_corpus(dirname, text_cutoff):
             author, title = DUMMY_AUTHORS.next(), os.sep.split(filename)[-1]
         authors.append(author)
         titles.append(title)
-        print(title)
+        logging.info("Reading: %s" % title)
         with open(filename) as infile:
             texts.append(
                 list(islice(tokenize(infile.read(), lowercase=True, deacc=True), 0, text_cutoff)))
@@ -352,15 +352,15 @@ class Verification(base.BaseEstimator):
                 ##################### put this inside loop??? #################
                 # randomly select n_actual_impostors from
                 # m_potential_imposters:
-                rand_imposter_indices = self.rnd.randint(
-                    0, m_X.shape[0], size=self.n_actual_imposters)
-                truncated_X = m_X[rand_imposter_indices, :]
-                logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                 ###############################################################
                 for k in range(self.iterations):
+                    rand_imposter_indices = self.rnd.randint(
+                        m_X.shape[0], size=self.n_actual_imposters)
+                    truncated_X = m_X[rand_imposter_indices, :]
+                    # logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                     # select random features:
                     rand_feat_indices = self.rnd.randint(
-                        0, truncated_X.shape[1], size=self.rand_features)
+                        truncated_X.shape[1], size=self.rand_features)
                     truncated_X_rand = truncated_X[:, rand_feat_indices]
     #                logging.debug("random truncated shape=%s:%s" % truncated_X_rand.shape)
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
@@ -468,7 +468,7 @@ if __name__ == '__main__':
     # one of: "minmax", "divergence", "manhattan", "cosine", "euclidean" #
     # distance metric to use
     metric = "minmax"
-    vector_space_model = "plm"  # one of: "idf", "tf", "std", "plm"
+    vector_space_model = "idf"  # one of: "idf", "tf", "std", "plm"
     m_potential_imposters = 30
     n_actual_imposters = 5
     # or None, if specified we sample n same_author_pairs and n
@@ -478,7 +478,7 @@ if __name__ == '__main__':
     # nr of randomly selected pairs (both same and diff), or None: all texts
     # will be paired exhaustively
     nr_test_pairs = 1000
-    n_features = 5000
+    n_features = 8000
     random_prop = 0.5
     plm_lambda = 0.1
     plm_iterations = 10
