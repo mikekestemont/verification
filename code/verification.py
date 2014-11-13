@@ -464,7 +464,7 @@ class Verification(base.BaseEstimator):
         sns.plt.clf()
 
 if __name__ == '__main__':
-    sample = False  # whether or not to sample from author and features
+    sample = True  # whether or not to sample from author and features
     # one of: "minmax", "divergence", "manhattan", "cosine", "euclidean" #
     # distance metric to use
     metric = "minmax"
