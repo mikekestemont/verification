@@ -118,7 +118,7 @@ class Verification(base.BaseEstimator):
     def __init__(self, n_features, random_prop, sample, metric, text_cutoff,
                  n_actual_impostors, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_impostors,
-                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed, 
+                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed,
                  plm_lambda, plm_iterations, sample_authors):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
@@ -342,7 +342,7 @@ class Verification(base.BaseEstimator):
                     a for _, a, _ in background_similarities[:self.m_potential_impostors]))
 
                 logging.debug("Test pair: %s, %s" % (author_i, author_j))
-                # select m potential impostors # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE 
+                # select m potential impostors # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE
                 # `background_similarities` MAY CONTAIN DUPLICATE AUTHORS!
                 m_indexes, m_impostors, _ = zip(*background_similarities[:self.m_potential_impostors])
                 m_X = self.X_background[list(m_indexes)]
@@ -429,9 +429,9 @@ class Verification(base.BaseEstimator):
                 print("\tRecall: {0}".format(recall))
         # plot precision recall-curve
         # set param:
-        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 
+        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
               'axes.titlesize': 3, "font.family": "sans-serif",
-              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 
+              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3,
               'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans']}
         sns.set_style("darkgrid", rc=rc)
         sns.set_style("darkgrid", rc=rc)
@@ -483,6 +483,7 @@ class Verification(base.BaseEstimator):
         sns.plt.xlim(0, 1)
         sns.plt.savefig("curves.pdf")
         sns.plt.clf()
+        return best_f1_dev, f1, precision, recall
 
 if __name__ == '__main__':
     # parse config file passed via cmd line:
@@ -531,8 +532,8 @@ if __name__ == '__main__':
                                 nr_same_author_test_pairs=nr_same_author_test_pairs,
                                 nr_diff_author_test_pairs=nr_diff_author_test_pairs,
                                 nr_test_pairs=nr_test_pairs,
-                                random_seed=random_seed, 
-                                plm_lambda=plm_lambda, 
+                                random_seed=random_seed,
+                                plm_lambda=plm_lambda,
                                 plm_iterations=plm_iterations)
     background_dataset = prepare_corpus(
         dirname=background_dataset_dir, text_cutoff=text_cutoff)
