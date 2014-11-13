@@ -382,18 +382,29 @@ class Verification(base.BaseEstimator):
     def plot_results(self):
         # This really doesn't belong to the verification class. It only needs the RESULTS
         # of the verification class. Refactor to the already suggested plotting module.
-        # set param:
-        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 
-              'axes.titlesize': 3, "font.family": "sans-serif",
-              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 
-              'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans'], }
-        sns.set_style("darkgrid", rc=rc)
+        # split pairs into dev and test set:
+        self.dev_scores = self.scores[:int(len(self.scores)/2)]
+        self.test_scores = self.scores[int(len(self.scores)/2):]
+        # determine threshold that maximizes F1 on dev scores:
+        dev_f1_scores = []
+        for threshold in np.arange(0.001, 1.001, 0.001):
+            preds, true, = [], []
+            for category, score in self.dev_scores:
+                if self.sample:
+                    preds.append(1 if score >= threshold else 0)
+                else:
+                    preds.append(1 if score <= threshold else 0)
+                true.append(1 if category == "same_author" else 0)
+            f1 = f1_score(preds, true)
+            dev_f1_scores.append((f1, threshold))
+        best_f1_dev = max(dev_f1_scores, key=itemgetter(0))
         # first, plot precision-recall curves (for non-zero combinations of
         # precision and recall)
         precisions, recalls, f1_scores = [], [], []
+        f1_test = None
         for threshold in np.arange(0.001, 1.001, 0.001):
             preds, true, = [], []
-            for category, score in self.scores:
+            for category, score in self.test_scores:
                 if self.sample:
                     preds.append(1 if score >= threshold else 0)
                 else:
@@ -401,16 +412,24 @@ class Verification(base.BaseEstimator):
                 true.append(1 if category == "same_author" else 0)
             f1 = f1_score(preds, true)
             f1_scores.append((f1, threshold))
-            try:
-                precision = precision_score(preds, true)
-                recall = recall_score(preds, true)
-                if precision and recall:
-                    precisions.append((precision, threshold))
-                    recalls.append((recall, threshold))
-            except:
-                continue
-        print(max(f1_scores))
+            precision = precision_score(preds, true)
+            recall = recall_score(preds, true)
+            if precision and recall:
+                precisions.append((precision, threshold))
+                recalls.append((recall, threshold))
+            if threshold == best_f1_dev[1]:
+                print("Best F1 on dev set = {0[0]}, @ threshold = {0[1]}".format(best_f1_dev))
+                print("Test results @ threshold = {1[1]}".format(f1, best_f1_dev))
+                print("\tF1: {0}".format(f1))
+                print("\tPrecision: {0}".format(precision))
+                print("\tRecall: {0}".format(recall))
         # plot precision recall-curve
+        # set param:
+        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 
+              'axes.titlesize': 3, "font.family": "sans-serif",
+              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 
+              'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans']}
+        sns.set_style("darkgrid", rc=rc)
         sns.set_style("darkgrid", rc=rc)
         sns.plt.xlabel('recall', fontsize=7)
         sns.plt.ylabel('precision', fontsize=7)
@@ -419,7 +438,6 @@ class Verification(base.BaseEstimator):
         sns.plt.plot(
             [prec for prec, _ in precisions], [rec for rec, _ in recalls])
         with open(self.metric.__name__ + ".txt", "wt") as F:
-            # with open("unigrams.txt", "wt") as F:
             for prec, rec in zip(precisions, recalls):
                 F.write(str(prec[0]) + "\t" + str(rec[0]) + "\n")
         sns.plt.savefig("prec_rec.pdf")
@@ -448,15 +466,13 @@ class Verification(base.BaseEstimator):
                      p for p, _ in precisions], label="precision", c=c2)
         sns.plt.plot(
             [s for _, s in recalls], [r for r, _ in recalls], label="recall", c=c3)
-        sns.plt.ylim(0, 1)
-        # plot best precision:
-        best_f1 = max(f1_scores, key=itemgetter(0))
+        sns.plt.ylim(0, 1.005)
+        # optimal best_f1 = max(f1_scores, key=itemgetter(0))
+        # plot dev F1:
         max_y = sns.plt.axis()[3]
-        sns.plt.axvline(x=best_f1[1], linewidth=1, c=c4)
+        sns.plt.axvline(x=best_f1_dev[1], linewidth=1, c=c4)
         sns.plt.text(
-            best_f1[1], max_y, "f1: " + str(round(best_f1[0], 2)), rotation=0, fontsize=5)
-        print(
-            "f1: " + str(round(best_f1[0], 2)) + " @thresholds=" + str(best_f1[1]))
+            best_f1_dev[1], max_y, "f1: " + str(round(best_f1_dev[0], 2)), rotation=0, fontsize=5)
         sns.plt.legend(loc=0)
         sns.plt.title(self.metric.__name__.capitalize())
         sns.plt.xlabel('threshold', fontsize=7)
@@ -518,7 +534,7 @@ if __name__ == '__main__':
         dirname=devel_dataset_dir, text_cutoff=text_cutoff)
     verification.fit(
         background_dataset=background_dataset, devel_dataset=devel_dataset)
-    verification.plot_weight_properties()
+    #verification.plot_weight_properties()
     verification.verify()
     print(verification)
     verification.plot_results()

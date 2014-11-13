@@ -17,7 +17,7 @@ iterations = 100
 # distance metric should be one of: "minmax", "divergence", "manhattan", "cosine", "euclidean":
 metric = minmax
 # space should be one of: "idf", "tf", "std", "plm"
-vector_space_model = plm
+vector_space_model = idf
 # type should be "word" or "char"
 feature_type = word
 # range for ngram extraction. if feature_type = "char", only max will be considered
@@ -36,7 +36,7 @@ nr_same_author_test_pairs = 0
 nr_diff_author_test_pairs = 0
 # nr of randomly selected pairs (both same and diff), or None: all texts
 # will be paired exhaustively
-nr_test_pairs = 1000
+nr_test_pairs = 20000
     
 [plm]
 # float for lambda
