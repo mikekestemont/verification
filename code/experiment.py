@@ -7,7 +7,7 @@ config_path = sys.argv[1]
 config = ConfigParser.ConfigParser()
 config.read(config_path)
 
-def experiment(params):
+def experiment(params, background_dataset, devel_dataset):
     (sample, sample_authors, vector_space_model, metric, n_actual_impostors,
      m_potential_impostors, iterations, text_cutoff, n_features, random_prop,
      feature_type, feature_ngram_range, nr_same_author_test_pairs,
@@ -116,11 +116,10 @@ for background, devel in zip(background_dataset_dir.split(','), devel_dataset_di
                                            nr_same_author_test_pairs, nr_diff_author_test_pairs,
                                            nr_test_pairs, random_seed, 0.0, 0))
 
-    print len(params)
-#    pool = Pool(15)
-#    results = pool.map(experiment, params, chunksize=len(params) / 15)
-#    pool.close()
-#    pool.join()
-#    with open("results.txt", "a") as outfile:
-#        for result in results:
-#            outfile.write('%s\n' % '\t'.join(map(str, result)))
+    pool = Pool(15)
+    results = pool.map(experiment, params, chunksize=len(params) / 15)
+    pool.close()
+    pool.join()
+    with open("results.txt", "a") as outfile:
+        for result in results:
+            outfile.write('%s\t%s\n' % (background, '\t'.join(map(str, result))))

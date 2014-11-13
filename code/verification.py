@@ -360,7 +360,7 @@ class Verification(base.BaseEstimator):
                 for k in range(self.iterations):
                     if self.sample_authors:
                         rand_imposter_indices = self.rnd.randint(
-                            m_X.shape[0], size=self.n_actual_imposters)
+                            m_X.shape[0], size=self.n_actual_impostors)
                         truncated_X = m_X[rand_imposter_indices, :]
                     # logging.debug("truncated shape=%s:%s" % truncated_X.shape)
                     # select random features:
@@ -369,7 +369,8 @@ class Verification(base.BaseEstimator):
                     truncated_X_rand = truncated_X[:, rand_feat_indices]
     #                logging.debug("random truncated shape=%s:%s" % truncated_X_rand.shape)
                     vec_i_trunc, vec_j_trunk = vec_i[rand_feat_indices], vec_j[rand_feat_indices]
-                    most_similar = min(self.metric(vec_i_trunc, truncated_X_rand[idx]) for idx in range(n_actual_impostors))
+                    most_similar = min(self.metric(vec_i_trunc, truncated_X_rand[idx])
+                                       for idx in range(self.n_actual_impostors))
                     target_distance = self.metric(vec_i_trunc, vec_j_trunk)
                     if (author_j == author_i):
                         logging.debug("NN: %s, Target: %s" % (most_similar, target_distance))
