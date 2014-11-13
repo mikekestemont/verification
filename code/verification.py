@@ -119,7 +119,7 @@ class Verification(base.BaseEstimator):
                  n_actual_impostors, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_impostors,
                  nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed, 
-                 plm_lambda, plm_iterations):
+                 plm_lambda, plm_iterations, sample_authors):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
             raise ValueError("Metric `%s` is not supported." % metric)
@@ -493,6 +493,7 @@ if __name__ == '__main__':
     background_dataset_dir = config.get('datasets', 'background_dataset_dir')
     devel_dataset_dir = config.get('datasets', 'devel_dataset_dir')
     sample = config.getboolean('impostors', 'sample')
+    sample_authors = config.getboolean('impostors', 'sample_authors')
     m_potential_impostors = config.getint('impostors', 'm_potential_impostors')
     n_actual_impostors = config.getint('impostors', 'n_actual_impostors')
     random_prop = config.getfloat('impostors', 'random_prop')
@@ -516,6 +517,7 @@ if __name__ == '__main__':
     plm_iterations = config.getint('plm', 'plm_iterations')
     # start the verification
     verification = Verification(sample=sample,
+                                sample_authors=sample_authors,
                                 vector_space_model=vector_space_model,
                                 metric=metric,
                                 n_actual_impostors=n_actual_impostors,

@@ -7,6 +7,7 @@ devel_dataset_dir = ../data/du_essays
 [impostors]
 # whether or not to sample from author and features
 sample = False
+sample_authors = False
 m_potential_impostors = 30
 n_actual_impostors = 5
 # proportion of randomly (0 <= float <= 1)
