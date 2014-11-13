@@ -117,7 +117,7 @@ class Verification(base.BaseEstimator):
     def __init__(self, n_features, random_prop, sample, metric, text_cutoff,
                  n_actual_imposters, iterations, nr_test_pairs, vector_space_model,
                  feature_type, feature_ngram_range, m_potential_imposters,
-                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None, 
+                 nr_same_author_test_pairs, nr_diff_author_test_pairs, random_seed=None,
                  plm_lambda=0.5, plm_iterations=100, sample_authors=False):
         self.sample = sample
         if metric not in DISTANCE_METRICS:
@@ -214,7 +214,7 @@ class Verification(base.BaseEstimator):
         # why is this a method of the verification class? It doesn't use any
         # of its function, only variables which can be passed to a seperate
         # function. Perhaps some more general plotting library. ALSO: make sure
-        # functions are no longer than 20 lines or else they become rather 
+        # functions are no longer than 20 lines or else they become rather
         # unreadable
         logging.info("Calculating weight properties.")
         # get delta weights:
@@ -343,7 +343,7 @@ class Verification(base.BaseEstimator):
 
                 logging.debug("Test pair: %s, %s" % (author_i, author_j))
 
-                # select m potential imposters # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE 
+                # select m potential imposters # FK THIS IS NOT WHAT YOU ARE DOING... BECAUSE
                 # `background_similarities` MAY CONTAIN DUPLICATE AUTHORS!
                 m_indexes, m_imposters, _ = zip(*background_similarities[:self.m_potential_imposters])
                 m_X = self.X_background[list(m_indexes)]
@@ -388,9 +388,9 @@ class Verification(base.BaseEstimator):
         # This really doesn't belong to the verification class. It only needs the RESULTS
         # of the verification class. Refactor to the already suggested plotting module.
         # set param:
-        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0, 
+        rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
               'axes.titlesize': 3, "font.family": "sans-serif",
-              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3, 
+              'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3, 'ylabel.major.size': 0.3,
               'ylabel.minor.size': 0.3, 'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans'], }
         sns.set_style("darkgrid", rc=rc)
         # first, plot precision-recall curves (for non-zero combinations of
@@ -475,9 +475,9 @@ if __name__ == '__main__':
     # distance metric to use
     sample_authors = False
     metric = "minmax"
-    vector_space_model = "idf"  # one of: "idf", "tf", "std", "plm"
-    m_potential_imposters = 100
-    n_actual_imposters = 10
+    vector_space_model = "plm"  # one of: "idf", "tf", "std", "plm"
+    m_potential_imposters = 30
+    n_actual_imposters = 5
     # or None, if specified we sample n same_author_pairs and n
     # diff_author_pairs
     nr_same_author_test_pairs = None
@@ -485,9 +485,9 @@ if __name__ == '__main__':
     # nr of randomly selected pairs (both same and diff), or None: all texts
     # will be paired exhaustively
     nr_test_pairs = 1000
-    n_features = 8000
+    n_features = 30000
     random_prop = 0.5
-    plm_lambda = 0.1
+    plm_lambda = 0.4
     plm_iterations = 10
     iterations = 100
     text_cutoff = None
@@ -507,8 +507,8 @@ if __name__ == '__main__':
                                 nr_same_author_test_pairs=nr_same_author_test_pairs,
                                 nr_diff_author_test_pairs=nr_diff_author_test_pairs,
                                 nr_test_pairs=nr_test_pairs,
-                                random_seed=1096, 
-                                plm_lambda=plm_lambda, 
+                                random_seed=1096,
+                                plm_lambda=plm_lambda,
                                 plm_iterations=plm_iterations,
                                 sample_authors=sample_authors)
     background_dataset = prepare_corpus(
