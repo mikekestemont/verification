@@ -509,7 +509,7 @@ if __name__ == '__main__':
                                 nr_test_pairs=nr_test_pairs,
                                 random_seed=1096, 
                                 plm_lambda=plm_lambda, 
-                                plm_iterations=plm_iterations
+                                plm_iterations=plm_iterations,
                                 sample_authors=sample_authors)
     background_dataset = prepare_corpus(
         dirname=sys.argv[1], text_cutoff=text_cutoff)
