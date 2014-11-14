@@ -93,7 +93,8 @@ def prepare_corpus(dirname, text_cutoff):
             author, title = underscore.split(
                 os.path.split(filename)[-1].replace(".txt", ""), maxsplit=1)
         else:
-            author, title = DUMMY_AUTHORS.next(), os.sep.split(filename)[-1]
+            author, title = next(DUMMY_AUTHORS), os.path.basename(filename).replace(".txt", "")
+            print(title)
         authors.append(author)
         titles.append(title)
         logging.info("Reading: %s" % title)
