@@ -22,6 +22,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.metrics import precision_score, recall_score, f1_score
 from gensim.utils import tokenize
 from scipy.spatial.distance import cosine, euclidean, cityblock
+from scipy.cluster.hierarchy import linkage, dendrogram
 
 # for (remote) plotting:
 import matplotlib
@@ -40,9 +41,15 @@ def dummy_author():
         yield str(i)
         i += 1
 
-
 def identity(x):
     return x
+
+def nparray2rmatrix(x):
+    nr, nc = x.shape
+    xvec = robjects.FloatVector(x.transpose().reshape((x.size)))
+    xr = robjects.r.matrix(xvec, nrow=nr, ncol=nc)
+    print(xr)
+    return xr
 
 DUMMY_AUTHORS = dummy_author()
 
@@ -324,6 +331,7 @@ class Verification(base.BaseEstimator):
                 vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 distances.append(self.metric(vec_i, vec_j))
                 labels.append("same_author" if author_i == author_j else "diff_author")
+            r_distances = np.zeros((n_devel_samples, n_devel_samples), dtype="float64")
             for dist, label in zip(distances, labels):
                 self.scores.append((label, (dist - min(distances)) / (max(distances) - min(distances))))
             for index, item in enumerate(self.test_pairs):
@@ -332,6 +340,10 @@ class Verification(base.BaseEstimator):
                 _, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 logging.info("Distance for %s (%s) - %s (%s) = %.3f" %
                              (title_i, author_i, title_j, author_j, self.scores[index][1]))
+                r_distances[i,j] = self.scores[index][1]
+                r_distances[j,i] = r_distances[i,j]
+            tree = dendrogram(linkage(r_distances, method='complete'), labels=devel_titles, orientation="left")
+            plt.savefig("dist.pdf")
         else:
             # verify each pair:
             for i, j in (self.test_pairs):
