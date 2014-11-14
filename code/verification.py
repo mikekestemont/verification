@@ -44,13 +44,6 @@ def dummy_author():
 def identity(x):
     return x
 
-def nparray2rmatrix(x):
-    nr, nc = x.shape
-    xvec = robjects.FloatVector(x.transpose().reshape((x.size)))
-    xr = robjects.r.matrix(xvec, nrow=nr, ncol=nc)
-    print(xr)
-    return xr
-
 DUMMY_AUTHORS = dummy_author()
 
 try:
@@ -331,7 +324,7 @@ class Verification(base.BaseEstimator):
                 vec_j, title_j, author_j = self.X_devel[j], devel_titles[j], devel_authors[j]
                 distances.append(self.metric(vec_i, vec_j))
                 labels.append("same_author" if author_i == author_j else "diff_author")
-            r_distances = np.zeros((n_devel_samples, n_devel_samples), dtype="float64")
+            r_distances = np.zeros((n_devel_samples, n_devel_samples))
             for dist, label in zip(distances, labels):
                 self.scores.append((label, (dist - min(distances)) / (max(distances) - min(distances))))
             for index, item in enumerate(self.test_pairs):
@@ -345,6 +338,7 @@ class Verification(base.BaseEstimator):
             tree = dendrogram(linkage(r_distances, method='complete'), labels=devel_titles, orientation="left")
             plt.savefig("dist.pdf")
         else:
+            r_distances = np.zeros((n_devel_samples, n_devel_samples))
             # verify each pair:
             for i, j in (self.test_pairs):
                 vec_i, title_i, author_i = self.X_devel[i], devel_titles[i], devel_authors[i]
@@ -403,6 +397,10 @@ class Verification(base.BaseEstimator):
                 self.scores.append(("same_author" if author_i == author_j else "diff_author", sigmas.mean()))
                 logging.info("Sigma for %s (%s) - %s (%s) = %.3f" % (
                     devel_titles[i], author_i, devel_titles[j], author_j, sigmas.mean()))
+                r_distances[i,j] = sigmas.mean()
+                r_distances[j,i] = r_distances[i,j]
+            tree = dendrogram(linkage(r_distances, method='complete'), labels=devel_titles, orientation="left")
+            plt.savefig("dist.pdf")
         return self.scores
 
     verify = predict
