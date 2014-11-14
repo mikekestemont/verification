@@ -9,7 +9,7 @@ import random
 import sys
 import math
 import re
-import ConfigParser
+import configparser
 from collections import defaultdict, namedtuple
 from functools import partial
 from itertools import combinations, islice
@@ -505,7 +505,7 @@ class Verification(base.BaseEstimator):
 if __name__ == '__main__':
     # parse config file passed via cmd line:
     config_path = sys.argv[1]
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.read("config.txt")
     # set options
     background_dataset_dir = config.get('datasets', 'background_dataset_dir')

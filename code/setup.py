@@ -11,7 +11,7 @@ setup(
     ext_modules = [Extension("distances", ["distances.pyx"], include_dirs = [np.get_include()])],
     install_requires=['numpy', 'scikit-learn', 'PLM'],
     dependency_links=[
-       "https://github.com/fbkarsdorp/PLM/archive/master.zip#egg=PLM-0.0.1"]
+       "https://github.com/fbkarsdorp/PLM/archive/master.zip#egg=PLM-0.0.2"]
 )
 
 # compile this via: python setup.py build_ext --inplace
