@@ -94,7 +94,6 @@ def prepare_corpus(dirname, text_cutoff):
                 os.path.split(filename)[-1].replace(".txt", ""), maxsplit=1)
         else:
             author, title = next(DUMMY_AUTHORS), os.path.basename(filename).replace(".txt", "")
-            print(title)
         authors.append(author)
         titles.append(title)
         logging.info("Reading: %s" % title)
@@ -336,7 +335,7 @@ class Verification(base.BaseEstimator):
                              (title_i, author_i, title_j, author_j, self.scores[index][1]))
                 r_distances[i,j] = self.scores[index][1]
                 r_distances[j,i] = r_distances[i,j]
-            tree = dendrogram(linkage(r_distances, method='complete'), labels=devel_titles, orientation="left")
+            tree = dendrogram(linkage(r_distances, method='single'), labels=devel_titles, orientation="left", leaf_font_size=3)
             plt.savefig("dist.pdf")
         else:
             r_distances = np.zeros((n_devel_samples, n_devel_samples))
@@ -400,7 +399,7 @@ class Verification(base.BaseEstimator):
                     devel_titles[i], author_i, devel_titles[j], author_j, sigmas.mean()))
                 r_distances[i,j] = sigmas.mean()
                 r_distances[j,i] = r_distances[i,j]
-            tree = dendrogram(linkage(r_distances, method='complete'), labels=devel_titles, orientation="left")
+            tree = dendrogram(linkage(r_distances, method='single'), labels=devel_titles, orientation="left", leaf_font_size=3)
             plt.savefig("dist.pdf")
         return self.scores
 
