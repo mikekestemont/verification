@@ -1,3 +1,5 @@
+from itertools import combinations
+
 import numpy as np
 import scipy.sparse as sp
 
@@ -48,7 +50,7 @@ class Verification(object):
     def __init__(self, n_features=1000, random_prop=0.5, sample_features=False,
                  sample_authors=False, metric='cosine', text_cutoff=None,
                  sample_iterations=100, n_potential_imposters=30,
-                 n_actual_imposters=10, n_test_pairs=1000, random_state=None,
+                 n_actual_imposters=10, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=100,
                  tfidf_norm='l2'):
 
@@ -74,9 +76,56 @@ class Verification(object):
             self.parameters['tf__weight'] = weight
 
     def fit(self, background_dataset, dev_dataset):
+        self.train_data, self.train_titles, self.train_authors = background_dataset
+        self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(self.parameters)
-        transformer.fit(background_dataset + dev_dataset)
-        self.X_train = transformer.transform(background_dataset)
-        self.X_dev = transformer.transform(dev_dataset)
+        transformer.fit(self.train_data + self.dev_data)
+        self.X_train = transformer.transform(self.train_data)
+        self.X_dev = transformer.transform(self.dev_data)
         return self
+
+    def _setup_test_pairs(self):
+        test_pairs = []
+        for i, j in combinations(range(len(self.dev_titles)), 2):
+            title_i, title_j = dev_titles[i], dev_titles[j]
+            if title_i[:title_i.index("_")] != title_j[:title_j.index('_')]:
+                test_pairs.append((i, j))
+        self.rnd.shuffle(test_pairs)
+        return test_pairs[:self.n_test_pairs]
+
+    def _verification(self):
+        distances, labels = [], []
+        for i, j in self._setup_test_pairs():
+            distances.append(self.metric(self.X_dev[i], self.X_dev[j]))
+            labels.append(
+                "same_author" if self.dev_authors[i] == self.dev_authors[j] else
+                "diff_author")
+        min_dist, max_dist = min(distances), max(distances)
+        for distance, label in zip(distances, labels):
+            yield label, (distance - min_dist) / (max_dist - min_dist)
+
+    def _verification_with_sampling(self):
+        for i, j in self._setup_test_pairs():
+            author_i, author_j = self.dev_authors[i], self.dev_authors[j]
+            train_sims = []
+            for k in range(self.X_train[0]):
+                if self.train_authors[k] not in (author_i, author_j):
+                    train_sims.append(k, self.train_authors[k],
+                                      self.metric(self.X_dev[i], self.X_train[k]))
+            train_sims.sort(key=lambda sim: s[-1])
+            indexes, imposters, _ = zip(*train_sim[:self.n_potential_imposters])
+            X_imposters = self.X_train[list(imposters)]
+            for iteration in range(self.sample_iterations):
+                rnd_imposters = self.rnd.randint(
+                    X_imposters.shape[0], size=self.n_actual_imposters)
+                X_truncated = X_imposters[rnd_imposters, :]
+                rnd_features = self.rnd.randint(
+                    X_truncated.shape[1], size=self.random_prop)
+                X_truncated = X_truncated[:, rnd_features]
+
+
+    def verify(self):
+        if self.sample_authors or self.sample_features:
+            return self._verification_with_sampling()
+        return self._verification()
