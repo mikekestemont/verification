@@ -75,7 +75,7 @@ class ParsimoniousLM(BaseEstimator):
         return self
 
     def transform(self, X):
-        return np.array([self.lm(x) for x in X])
+        return np.exp(np.array([self.lm(x) for x in X]))
 
     def cross_entropy(self, qlm, rlm):
         return -np.sum(np.exp(qlm) * np.logaddexp(self.pc, rlm + self.weight))
