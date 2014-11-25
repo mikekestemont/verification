@@ -3,6 +3,7 @@
 import logging
 import numpy as np
 from heapq import nlargest
+from sklearn.base import BaseEstimator
 from sklearn.feature_extraction.text import CountVectorizer
 
 old_settings = np.seterr(all='ignore')
@@ -33,12 +34,16 @@ def logsum(x):
     out += vmax
     return out
 
-class ParsimoniousLM(object):
-    def __init__(self, documents, weight, min_df=1, max_df=1.0):
+class ParsimoniousLM(BaseEstimator):
+
+    def __init__(self, weight=0.1, iterations=50, eps=1e-5, min_df=1,
+                 max_df=1.0, analyzer='word', max_features=None):
         self.weight = np.log(weight)
-        self.vectorizer = CountVectorizer(min_df=min_df, max_df=max_df, analyzer=lambda i: i)
-        cf = np.array(self.vectorizer.fit_transform(documents).sum(axis=0))[0]
-        self.pc = (np.log(cf) - np.log(np.sum(cf))) + np.log(1 - weight)
+        self.iterations = iterations
+        self.eps = eps
+        self.vectorizer = CountVectorizer(
+            min_df=min_df, max_df=max_df, analyzer=analyzer,
+            max_features=max_features)
 
     def topK(self, k, document, iterations=50, eps=1e-5):
         ptf = self.lm(document, iterations, eps)
@@ -64,18 +69,13 @@ class ParsimoniousLM(object):
                 break
         return ptf
 
-    def fit(self, texts, labels=None, iterations=50, eps=1e-5):
-        self.fitted_ = []
-        if labels is None:
-            labels = list(range(len(texts)))
-        for label, text in zip(labels, texts):
-            logging.info("Fitting document %s (%s)..." % (label, len(labels)))
-            lm = self.lm(text, iterations, eps)
-            self.fitted_.append((label, lm))
+    def fit(self, X, y=None):
+        cf = np.array(self.vectorizer.fit_transform(X).sum(axis=0))[0]
+        self.pc = (np.log(cf) - np.log(np.sum(cf))) + np.log(1 - self.weight)
+        return self
 
-    def fit_transform(self, texts, labels=None, iterations=50, eps=1e-5):
-        self.fit(texts, labels, iterations, eps)
-        return np.array(list(zip(*self.fitted_))[1])
+    def transform(self, X):
+        return np.array([self.lm(x) for x in X])
 
     def cross_entropy(self, qlm, rlm):
         return -np.sum(np.exp(qlm) * np.logaddexp(self.pc, rlm + self.weight))

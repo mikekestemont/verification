@@ -35,11 +35,11 @@ class DeltaWeightScaler(BaseEstimator):
 
 pipelines = {
     'tf': Pipeline([('tf', TfidfVectorizer(analyzer=analyzer, use_idf=False))]),
-    'std': Pipeline([('std', TfidfVectorizer(analyzer=analyzer, use_idf=False)),
+    'std': Pipeline([('tf', TfidfVectorizer(analyzer=analyzer, use_idf=False)),
                      ('scaler', DeltaWeightScaler())]),
     'idf': Pipeline([('tf', CountVectorizer(analyzer=analyzer)),
                      ('tfidf', TfidfTransformer())]),
-    'plm': Pipeline([('plm', ParsimoniousLM())])
+    'plm': Pipeline([('tf', ParsimoniousLM())])
 }
 
 
@@ -49,7 +49,8 @@ class Verification(object):
                  sample_authors=False, metric='cosine', text_cutoff=None,
                  sample_iterations=100, n_potential_imposters=30,
                  n_actual_imposters=10, n_test_pairs=1000, random_state=None,
-                 vector_space_model='std', weight=0.1, em_iterations=100):
+                 vector_space_model='std', weight=0.1, em_iterations=100,
+                 tfidf_norm='l2'):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -64,9 +65,18 @@ class Verification(object):
         self.vector_space_model = vector_space_model
         self.weight = weight
         self.em_iterations = em_iterations
+        self.tfidf_norm = tfidf_norm
         self.rnd = np.random.RandomState(random_state)
+        self.parameters = {'tf__max_features': n_features}
+        if self.vector_space_model == 'idf':
+            self.parameters['tfidf__norm'] = tfidf_norm
+        elif self.vector_space_model == 'plm':
+            self.parameters['tf__weight'] = weight
 
     def fit(self, background_dataset, dev_dataset):
         transformer = pipelines[self.vector_space_model]
-        self.X_train = transformer.fit_transform(background_dataset)
+        transformer.set_params(self.parameters)
+        transformer.fit(background_dataset + dev_dataset)
+        self.X_train = transformer.transform(background_dataset)
         self.X_dev = transformer.transform(dev_dataset)
+        return self
