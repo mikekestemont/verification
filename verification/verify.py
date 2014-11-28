@@ -65,9 +65,10 @@ pipelines = {
 
 distance_metrics = {
     "minmax": minmax,
-    "manhattan": dist_metrics.HammingDistance,
-    "euclidean": dist_metrics.EuclideanDistance,
-    "cosine": cosine_distances,
+    "manhattan": cityblock,
+    "euclidean": euclidean,
+    "cosine": cosine,
+    "divergence": divergence,
 }
 
 class Verification(object):
@@ -150,12 +151,9 @@ class Verification(object):
                 X_truncated = X_imposters[rnd_imposters, :]
                 rnd_features = self.rnd.randint(
                     X_truncated.shape[1], size=self.random_prop)
-                X_truncated = X_truncated[:, rnd_features]
-                vec_i = self.X_dev[i, rnd_features]
-                vec_j = self.X_dev[j, rnd_features]
-                most_similar = min(self.metric(vec_i, X_truncated[k])
+                most_similar = min(self.metric(vec_i, X_truncated[k], rnd_features)
                                    for k in range(self.n_actual_imposters))
-                target_dist = self.metric(vec_i, vec_j)
+                target_dist = self.metric(vec_i, vec_j, rnd_features)
                 if target_dist <= most_similar:
                     targets += 1
                 sigmas[iteration] = targets / (iterations + 1.0)
