@@ -1,1 +1,0 @@
-https://github.com/fbkarsdorp/PLM/archive/master.zip#egg=PLM-0.0.1
