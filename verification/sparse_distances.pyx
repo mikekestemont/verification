@@ -1,5 +1,3 @@
-
-from libc.string cimport memset
 import numpy as np
 cimport cython
 cimport numpy as np
@@ -10,6 +8,12 @@ from scipy.linalg.blas import fblas
 cdef fused floating1d:
     float[::1]
     double[::1]
+
+cdef double norm(double[:] x, int[:] indices):
+    cdef double ans = 0
+    for i in indices:
+        ans += x[i] * x[i]
+    return np.sqrt(ans)
 
 @cython.boundscheck(False)
 def sparse_euclidean(floating1d X_data, int[:] X_indices, int[:] X_indptr,
@@ -22,8 +26,7 @@ def sparse_euclidean(floating1d X_data, int[:] X_indices, int[:] X_indptr,
         row[X_indices[j]] = X_data[j]
     for j in range(Y_indptr[0], Y_indptr[1]):
         row[Y_indices[j]] -= Y_data[j]
-    dist = fblas.dasum(row)
-    return np.sqrt(dist * dist)
+    return norm(row, indices)
 
 @cython.boundscheck(False)
 def sparse_cityblock(floating1d X_data, int[:] X_indices, int[:] X_indptr,
@@ -32,7 +35,6 @@ def sparse_cityblock(floating1d X_data, int[:] X_indices, int[:] X_indptr,
     cdef double[::1] row = np.empty(n_features)
     cdef double dist = 0.0
     cdef np.npy_intp j
-    memset(&row[0], 0, n_features * sizeof(double))
     for j in range(X_indptr[0], X_indptr[1]):
         row[X_indices[j]] = X_data[j]
     for j in range(Y_indptr[0], Y_indptr[1]):
@@ -45,12 +47,6 @@ cdef double dot_product(double[:] x, double[:] y, int[:] indices):
     for i in indices:
         s += x[i] * y[i]
     return s
-
-cdef double norm(double[:] x, int[:] indices):
-    cdef double ans = 0
-    for i in indices:
-        ans += x[i] * x[i]
-    return np.sqrt(ans)
 
 @cython.boundscheck(False)
 def sparse_cosine(floating1d X_data, int[:] X_indices, int[:] X_indptr,

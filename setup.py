@@ -11,7 +11,7 @@ setup(
     name = "Verification distance function",
     cmdclass = {"build_ext": build_ext},
     packages = ['verification'],
-    ext_modules = [Extension("verification/sparse_distances",
+    ext_modules = [Extension("verification.sparse_distances",
                              ["verification/sparse_distances.pyx"],
                              include_dirs = [np.get_include()])],
     install_requires=['numpy', 'scikit-learn'],
