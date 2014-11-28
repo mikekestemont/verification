@@ -86,7 +86,7 @@ DISTANCE_METRICS = {"divergence": divergence,
                     "cosine": cosine,
                     "euclidean": euclidean}
 
-def prepare_corpus(dirname, text_cutoff):
+def prepare_corpus(dirname, text_cutoff=10000000):
     underscore = re.compile(r'\_')
     authors, titles, texts = [], [], []
     for filename in sorted(glob.glob(dirname + "/*")):
