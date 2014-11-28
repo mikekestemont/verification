@@ -160,7 +160,7 @@ class Verification(object):
                     targets += 1
                 sigmas[iteration] = targets / (iterations + 1.0)
             yield ("same_author" if author_i == author_j else "diff_author",
-                   sigmas.mean())
+                   1 - sigmas.mean())
 
     def verify(self):
         if self.sample_authors or self.sample_features:
@@ -183,11 +183,12 @@ def evaluate_predictions(results, sample=False):
     results = list(results)
     dev_results = results[:int(len(results) / 2.0)]
     test_results = results[int(len(results) / 2.0):]
-    threshold_fn = partial(_get_result_for_threshold, sample=sample)
     thresholds = np.arange(0.001, 1.001, 0.001)
-    dev_f1, dev_t, _, _ = max(map(threshold_fn, dev_results, thresholds),
-                              key=itemgetter(0))
-    test_scores = map(threshold_fn, test_results, thresholds)
+    dev_f1, dev_t, _, _ = max(
+        (_get_result_for_threshold(dev_results, t, sample) for t in thresholds)
+        key=itemgetter(0))
+    test_scores = [_get_result_for_threshold(test_results, t, sample)
+                   for t in thresholds]
     return test_scores, dev_t
 
 def prec_recall_curve(scores, dev_t, filename="prec_rec.pdf", fontsize=7):
@@ -195,6 +196,40 @@ def prec_recall_curve(scores, dev_t, filename="prec_rec.pdf", fontsize=7):
     sb.plt.xlabel("recall", fontsize=fontsize)
     sb.plt.ylabel("precision", fontsize=fontsize)
     sb.plt.xlim(0, 1); sb.plt.ylim(0, 1)
-    _, _ precisions, recalls = zip(*scores)
+    _, _, precisions, recalls = zip(*scores)
     sb.plt.plot(precisions, recalls)
     sb.plt.savefig(filename)
+
+def plot_test_densities(results, dev_t, filename="test_densities.pdf",
+                        fontsize=7):
+    fig = sb.plt.figure()
+    same_author_densities = np.asarray(
+        [sc for c, sc in results if c == "same_author"])
+    diff_author_densities = np.asarray(
+        [sc for c, sc in results if c == "diff_author"])
+    c1, c2, c3 = sb.color_palette("Set1")[:3]
+    sb.plt.xlim(0, 1)
+    sb.kdeplot(diff_author_densities, shade=True,
+               label="Different author pairs", legend=False, c=c1)
+    sb.kdeplot(same_author_densities, shade=True,
+               label="Same author pairs", legend=False, c=c2)
+    sb.plt.axvline(x=dev_t, linewidth=1, c=c3) # good idea?
+    sb.plt.legend(loc=0)
+    sb.plt.savefig(filename)
+    sb.plt.clf()
+
+def plot_test_results(scores, dev_t, filename="test_curve.pdf", fontsize=7):
+    fig = sb.plt.figure()
+    c1, c2, c3, c4 = sb.color_palette("Set1")[:4]
+    f1_scores, thresholds, precisions, recalls = zip(*scores)
+    sb.plt.plot(f1_scores, thresholds, label="F1 score", c=c1)
+    sb.plt.plot(precisions, thresholds, label="Precision", c=c2)
+    sb.plt.plot(recalls, thresholds, label="Recall", c=c3)
+    sb.plt.xlim(0, 1)
+    sb.plt.ylim(0, 1.005)
+    sb.plt.axvline(x=dev_t, linewidth=1, c=c4)
+    sb.plt.legend(loc=0)
+    sb.plt.xlabel('Threshold', fontsize=fontsize)
+    sb.plt.ylabel('Score', fontsize=fontsize)
+    sb.plt.savefig(filename)
+    sb.plt.clf()
