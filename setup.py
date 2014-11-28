@@ -8,9 +8,10 @@ import numpy as np
 setup(
     name = "Verification distance function",
     cmdclass = {"build_ext": build_ext},
-    ext_modules = [Extension("distances", ["distances.pyx"],
+    packages = ['verification'],
+    ext_modules = [Extension("verification/distances", ["verification/distances.pyx"],
                              include_dirs = [np.get_include()]),
-                   Extension("distances_sparse", ["distances_sparse.pyx"],
+                   Extension("verification/distances_sparse", ["verification/distances_sparse.pyx"],
                              include_dirs = [np.get_include()])],
     install_requires=['numpy', 'scikit-learn'],
 )
