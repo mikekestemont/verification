@@ -5,7 +5,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 
 class SparsePLM(BaseEstimator):
-    def __init__(self, weight=0.1, iterations=50, eps=1e-5):
+    def __init__(self, weight=0.1, iterations=50, eps=1e-9):
         self.weight = weight
         self.iterations = iterations
         self.eps = eps
@@ -25,13 +25,13 @@ class SparsePLM(BaseEstimator):
         for i in range(X.shape[0]):
             begin_col, end_col = X.indptr[i], X.indptr[i+1]
             data = X.data[begin_col: end_col]
-            p_data = data / data.sum()
+            p_data = np.ones(data.shape[0]) / data.shape[0]
             c_data = self.pc[X.indices[begin_col: end_col]]
             for iteration in range(1, self.iterations + 1):
                 p_data *= self.weight
                 E = data * p_data / (c_data + p_data)
                 M = E / E.sum()
-                diff = abs(M - p_data)
+                diff = np.abs(M - p_data)
                 p_data = M
                 if (diff < self.eps).all():
                     break
