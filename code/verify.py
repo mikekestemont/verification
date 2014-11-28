@@ -10,6 +10,8 @@ from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.neighbors import dist_metrics
+from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
@@ -58,6 +60,12 @@ pipelines = {
     'plm': Pipeline([('tf', ParsimoniousLM())])
 }
 
+distance_metrics = {
+    "minmax": minmax,
+    "manhattan": dist_metrics.HammingDistance,
+    "euclidean": dist_metrics.EuclideanDistance,
+    "cosine": cosine_distances,
+}
 
 class Verification(object):
 
@@ -72,7 +80,7 @@ class Verification(object):
         self.random_prop = int(random_prop * n_features)
         self.sample_features = sample_features
         self.sample_authors = sample_authors
-        self.metric = metric
+        self.metric = distance_metrics[metric]
         self.text_cutoff = text_cutoff
         self.sample_iterations = sample_iterations
         self.n_potential_imposters = n_potential_imposters

@@ -8,7 +8,8 @@ import numpy as np
 setup(
 	name = "Verification distance function",
 	cmdclass = {"build_ext": build_ext},
-    ext_modules = [Extension("distances", ["distances.pyx"], include_dirs = [np.get_include()])],
+    ext_modules = [Extension("distances", ["distances.pyx"], include_dirs = [np.get_include()]),
+                   Extension("distances_sparse", ["distances_sparse.pyx"], include_dirs = [np.get_include()])],
     install_requires=['numpy', 'scikit-learn', 'PLM'],
     dependency_links=[
        "https://github.com/fbkarsdorp/PLM/archive/master.zip#egg=PLM-0.0.2"]
