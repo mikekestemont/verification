@@ -116,6 +116,8 @@ class Verification(object):
             train_sims.sort(key=lambda sim: s[-1])
             indexes, imposters, _ = zip(*train_sim[:self.n_potential_imposters])
             X_imposters = self.X_train[list(imposters)]
+            targets = 0.0
+            sigmas = np.zeros(self.sample_iterations)
             for iteration in range(self.sample_iterations):
                 rnd_imposters = self.rnd.randint(
                     X_imposters.shape[0], size=self.n_actual_imposters)
@@ -123,6 +125,16 @@ class Verification(object):
                 rnd_features = self.rnd.randint(
                     X_truncated.shape[1], size=self.random_prop)
                 X_truncated = X_truncated[:, rnd_features]
+                vec_i = self.X_dev[i, rnd_features]
+                vec_j = self.X_dev[j, rnd_features]
+                most_similar = min(self.metric(vec_i, X_truncated[k])
+                                   for k in range(self.n_actual_imposters))
+                target_dist = self.metric(vec_i, vec_j)
+                if target_dist <= most_similar:
+                    targets += 1
+                sigmas[iteration] = targets / (iterations + 1.0)
+            yield ("same_author" if author_i == author_j else "diff_author",
+                   sigmas.mean())
 
 
     def verify(self):
