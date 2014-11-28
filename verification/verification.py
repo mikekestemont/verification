@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 from itertools import combinations
 from operator import itemgetter
@@ -12,13 +13,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.neighbors import dist_metrics
 from sklearn.metrics.pairwise import cosine_distances
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
 from sparse_plm import SparsePLM
 
-from distances import minmax, divergence
+from preprocessing import analyzer, identity
+from distances import minmax, divergence, cityblock, cosine, euclidean
 
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
       'axes.titlesize': 3, "font.family": "sans-serif",
@@ -26,17 +29,6 @@ rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
       'ylabel.major.size': 0.3, 'ylabel.minor.size': 0.3,
       'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans']}
 sb.set_style("darkgrid", rc=rc)
-
-
-
-def analyzer(words, n):
-    for word in words:
-        if len(word) <= n:
-            yield word
-        else:
-            word = "%" + word + "*"
-            for i in range(len(word) - n - 1):
-                yield word[i:i + n]
 
 
 class DeltaWeightScaler(BaseEstimator):
@@ -54,12 +46,12 @@ class DeltaWeightScaler(BaseEstimator):
 
 
 pipelines = {
-    'tf': Pipeline([('tf', TfidfVectorizer(analyzer=analyzer, use_idf=False))]),
-    'std': Pipeline([('tf', TfidfVectorizer(analyzer=analyzer, use_idf=False)),
+    'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
+    'std': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False)),
                      ('scaler', DeltaWeightScaler())]),
-    'idf': Pipeline([('tf', CountVectorizer(analyzer=analyzer)),
+    'idf': Pipeline([('tf', CountVectorizer(analyzer=identity)),
                      ('tfidf', TfidfTransformer())]),
-    'plm': Pipeline([('tf', CountVectorizer(analyzer=analyzer)),
+    'plm': Pipeline([('tf', CountVectorizer(analyzer=identity)),
                      ('plm', SparsePLM())])
 }
 
@@ -75,9 +67,9 @@ class Verification(object):
 
     def __init__(self, n_features=1000, random_prop=0.5, sample_features=False,
                  sample_authors=False, metric='cosine', text_cutoff=None,
-                 sample_iterations=100, n_potential_imposters=30,
+                 sample_iterations=10, n_potential_imposters=30,
                  n_actual_imposters=10, n_test_pairs=None, random_state=None,
-                 vector_space_model='std', weight=0.1, em_iterations=100,
+                 vector_space_model='std', weight=0.1, em_iterations=10,
                  tfidf_norm='l2'):
 
         self.n_features = n_features
@@ -99,31 +91,39 @@ class Verification(object):
         if self.vector_space_model == 'idf':
             self.parameters['tfidf__norm'] = tfidf_norm
         elif self.vector_space_model == 'plm':
-            self.parameters['tf__weight'] = weight
+            self.parameters['plm__weight'] = weight
+            self.parameters['plm__iterations'] = em_iterations
 
     def fit(self, background_dataset, dev_dataset):
         self.train_data, self.train_titles, self.train_authors = background_dataset
         self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
         transformer = pipelines[self.vector_space_model]
-        transformer.set_params(self.parameters)
+        transformer.set_params(**self.parameters)
         transformer.fit(self.train_data + self.dev_data)
         self.X_train = transformer.transform(self.train_data)
+        logging.info("Background corpus: n_samples=%s / n_features=%s" % (
+            self.X_train.shape))
         self.X_dev = transformer.transform(self.dev_data)
+        logging.info("Development corpus: n_samples=%s / n_features=%s" % (
+            self.X_train.shape))
         return self
 
     def _setup_test_pairs(self):
-        # kan zo alleen zonder samplen
         test_pairs = []
-        for i, j in combinations(range(len(self.dev_titles)), 2):
-            title_i, title_j = dev_titles[i], dev_titles[j]
-            if title_i[:title_i.index("_")] != title_j[:title_j.index('_')]:
-                test_pairs.append((i, j))
+        for i in range(len(self.dev_titles)):
+            for j in range(len(self.dev_titles)):
+                if i != j:
+                    title_i, title_j = self.dev_titles[i], self.dev_titles[j]
+                    if title_i.split("_")[0] != title_j.split('_')[0]:
+                        test_pairs.append((i, j))
         self.rnd.shuffle(test_pairs)
         return test_pairs[:self.n_test_pairs]
 
     def _verification(self):
         distances, labels = [], []
-        for i, j in self._setup_test_pairs():
+        test_pairs = self._setup_test_pairs()
+        for k, (i, j) in enumerate(test_pairs):
+            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)+1))
             distances.append(self.metric(self.X_dev[i], self.X_dev[j]))
             labels.append(
                 "same_author" if self.dev_authors[i] == self.dev_authors[j] else
@@ -133,16 +133,18 @@ class Verification(object):
             yield label, (distance - min_dist) / (max_dist - min_dist)
 
     def _verification_with_sampling(self):
-        for i, j in self._setup_test_pairs():
+        test_pairs = self._setup_test_pairs()
+        for k, (i, j) in enumerate(test_pairs):
+            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)+1))
             author_i, author_j = self.dev_authors[i], self.dev_authors[j]
             train_sims = []
-            for k in range(self.X_train[0]):
+            for k in range(self.X_train.shape[0]):
                 if self.train_authors[k] not in (author_i, author_j):
-                    train_sims.append(k, self.train_authors[k],
-                                      self.metric(self.X_dev[i], self.X_train[k]))
-            train_sims.sort(key=lambda sim: s[-1])
-            indexes, imposters, _ = zip(*train_sim[:self.n_potential_imposters])
-            X_imposters = self.X_train[list(imposters)]
+                    train_sims.append((k, self.train_authors[k],
+                                       self.metric(self.X_dev[i], self.X_train[k])))
+            train_sims.sort(key=lambda sim: sim[-1])
+            indexes, imposters, _ = zip(*train_sims[:self.n_potential_imposters])
+            X_imposters = self.X_train[list(indexes), :]
             targets = 0.0
             sigmas = np.zeros(self.sample_iterations)
             for iteration in range(self.sample_iterations):
@@ -151,12 +153,13 @@ class Verification(object):
                 X_truncated = X_imposters[rnd_imposters, :]
                 rnd_features = self.rnd.randint(
                     X_truncated.shape[1], size=self.random_prop)
+                vec_i, vec_j = self.X_dev[i], self.X_dev[j]
                 most_similar = min(self.metric(vec_i, X_truncated[k], rnd_features)
                                    for k in range(self.n_actual_imposters))
                 target_dist = self.metric(vec_i, vec_j, rnd_features)
                 if target_dist <= most_similar:
                     targets += 1
-                sigmas[iteration] = targets / (iterations + 1.0)
+                sigmas[iteration] = targets / (iteration + 1.0)
             yield ("same_author" if author_i == author_j else "diff_author",
                    1 - sigmas.mean())
 
@@ -165,7 +168,7 @@ class Verification(object):
             return self._verification_with_sampling()
         return self._verification()
 
-def _get_result_for_threshold(results, t, sample=False):
+def get_result_for_threshold(results, t, sample=False):
     preds, true = [], []
     # kan als we 1 - sigmas.mean() gebruiken, weg
     for label, score in results:
@@ -183,9 +186,9 @@ def evaluate_predictions(results, sample=False):
     test_results = results[int(len(results) / 2.0):]
     thresholds = np.arange(0.001, 1.001, 0.001)
     dev_f1, dev_t, _, _ = max(
-        (_get_result_for_threshold(dev_results, t, sample) for t in thresholds)
+        (get_result_for_threshold(dev_results, t, sample) for t in thresholds),
         key=itemgetter(0))
-    test_scores = [_get_result_for_threshold(test_results, t, sample)
+    test_scores = [get_result_for_threshold(test_results, t, sample)
                    for t in thresholds]
     return test_scores, dev_t
 
