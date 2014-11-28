@@ -17,6 +17,8 @@ from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
 from plm import ParsimoniousLM
 
+from distance import minmax
+
 
 rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
       'axes.titlesize': 3, "font.family": "sans-serif",
