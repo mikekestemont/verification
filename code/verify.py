@@ -1,15 +1,29 @@
+from functools import partial
 from itertools import combinations
+from operator import itemgetter
 
 import numpy as np
 import scipy.sparse as sp
+import seaborn as sb
 
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
 from plm import ParsimoniousLM
+
+
+rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
+      'axes.titlesize': 3, "font.family": "sans-serif",
+      'xlabel.major.size': 0.3, 'xlabel.minor.size': 0.3,
+      'ylabel.major.size': 0.3, 'ylabel.minor.size': 0.3,
+      'font.family': 'Arial', 'font.sans-serif': ['Bitstream Vera Sans']}
+sb.set_style("darkgrid", rc=rc)
+
+
 
 def analyzer(words, n):
     for word in words:
@@ -136,8 +150,37 @@ class Verification(object):
             yield ("same_author" if author_i == author_j else "diff_author",
                    sigmas.mean())
 
-
     def verify(self):
         if self.sample_authors or self.sample_features:
             return self._verification_with_sampling()
         return self._verification()
+
+def _get_result_for_threshold(results, t, sample=False):
+    preds, true = [], []
+    for label, score in results:
+        if sample:
+            preds.append(1 if score >= t else 0)
+        else:
+            preds.append(1 if score <= t else 0)
+        true.append(1 if label == "same_author" else 0)
+    return (f1_score(true, preds), t,
+            precision_score(true, preds), recall_score(true, preds))
+
+def evaluate_predictions(results, sample=False):
+    results = list(results)
+    dev_results = results[:int(len(results) / 2.0)]
+    test_results = results[int(len(results) / 2.0):]
+    threshold_fn = partial(_get_result_for_threshold, sample=sample)
+    thresholds = np.arange(0.001, 1.001, 0.001)
+    dev_f1, dev_t, _, _ = max(map(threshold_fn, dev_results, thresholds),
+                              key=itemgetter(0))
+    test_scores = map(threshold_fn, test_results)
+    return test_scores, dev_t
+
+def prec_recall_curve(scores, dev_t, fontsize=7):
+    fig = sb.plt.figure()
+    sb.plt.xlabel("recall", fontsize=fontsize)
+    sb.plt.ylabel("precision", fontsize=fontsize)
+    sb.plt.xlim(0, 1); sb.plt.ylim(0, 1)
+    _, _ precisions, recalls = zip(*scores)
+    sb.plt.plot(precisions, recalls)
