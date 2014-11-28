@@ -6,15 +6,15 @@ from verification.preprocessing import prepare_corpus
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
-train, dev = "../data/caesar_background", "../data/caesar_devel"
+train, dev = "../data/du_essays", "../data/du_essays"
 logging.info("preparing corpus")
 X_train = prepare_corpus(train)
 X_dev = prepare_corpus(dev)
 verifier = Verification(random_state=1,
-                        metric='minmax',
-                        n_features=500,
+                        metric='cosine', sample_authors=False,
+                        n_features=10000,
                         n_test_pairs=20000, em_iterations=10,
-                        vector_space_model='plm', weight=0.3)
+                        vector_space_model='std', weight=0.01)
 logging.info("Starting verification")
 verifier.fit(X_train, X_dev)
 results = list(verifier.verify())

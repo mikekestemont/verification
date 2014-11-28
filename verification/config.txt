@@ -1,12 +1,12 @@
 # Configuration file for verification system
 
 [datasets]
-background_dataset_dir = ../data/caesar_background
-devel_dataset_dir = ../data/caesar_devel
+background_dataset_dir = /Users/folgert/collectors-vvb
+devel_dataset_dir = /Users/folgert/collectors-vvb
 
 [impostors]
 # whether or not to sample from author and features
-sample = True
+sample = False
 sample_authors = False
 m_potential_impostors = 30
 n_actual_impostors = 5
@@ -18,14 +18,14 @@ iterations = 50
 # distance metric should be one of: "minmax", "divergence", "manhattan", "cosine", "euclidean":
 metric = minmax
 # space should be one of: "idf", "tf", "std", "plm"
-vector_space_model = idf
+vector_space_model = std
 # type should be "word" or "char"
 feature_type = word
 # range for ngram extraction. if feature_type = "char", only max will be considered
 feature_ngram_min = 1
 feature_ngram_max = 1
 # integer for vocabulary truncation
-n_features = 10000
+n_features = 5000
 # integer: nr of words to texts should be truncated (to normalize text length)
 text_cutoff = 100000
 
@@ -37,8 +37,8 @@ nr_same_author_test_pairs = 0
 nr_diff_author_test_pairs = 0
 # nr of randomly selected pairs (both same and diff), or None: all texts
 # will be paired exhaustively
-nr_test_pairs = 0
-    
+nr_test_pairs = 1000
+
 [plm]
 # float for lambda
 plm_lambda = 0.1
