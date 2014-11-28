@@ -15,7 +15,7 @@ from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
-from plm import ParsimoniousLM
+from sparse_plm import SparsePLM
 
 from distance import minmax
 
@@ -59,7 +59,8 @@ pipelines = {
                      ('scaler', DeltaWeightScaler())]),
     'idf': Pipeline([('tf', CountVectorizer(analyzer=analyzer)),
                      ('tfidf', TfidfTransformer())]),
-    'plm': Pipeline([('tf', ParsimoniousLM())])
+    'plm': Pipeline([('tf', CountVectorizer(analyzer=analyzer)),
+                     ('plm', SparsePLM())])
 }
 
 distance_metrics = {
@@ -110,6 +111,7 @@ class Verification(object):
         return self
 
     def _setup_test_pairs(self):
+        # kan zo alleen zonder samplen
         test_pairs = []
         for i, j in combinations(range(len(self.dev_titles)), 2):
             title_i, title_j = dev_titles[i], dev_titles[j]
@@ -167,6 +169,7 @@ class Verification(object):
 
 def _get_result_for_threshold(results, t, sample=False):
     preds, true = [], []
+    # kan als we 1 - sigmas.mean() gebruiken, weg
     for label, score in results:
         if sample:
             preds.append(1 if score >= t else 0)
@@ -184,7 +187,7 @@ def evaluate_predictions(results, sample=False):
     thresholds = np.arange(0.001, 1.001, 0.001)
     dev_f1, dev_t, _, _ = max(map(threshold_fn, dev_results, thresholds),
                               key=itemgetter(0))
-    test_scores = map(threshold_fn, test_results)
+    test_scores = map(threshold_fn, test_results, thresholds)
     return test_scores, dev_t
 
 def prec_recall_curve(scores, dev_t, filename="prec_rec.pdf", fontsize=7):

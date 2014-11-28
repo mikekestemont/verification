@@ -38,7 +38,7 @@ class ParsimoniousLM(BaseEstimator):
 
     def __init__(self, weight=0.1, iterations=50, eps=1e-5, min_df=1,
                  max_df=1.0, analyzer='word', max_features=None):
-        self.weight = np.log(weight)
+        self.weight = weight
         self.iterations = iterations
         self.eps = eps
         self.vectorizer = CountVectorizer(
@@ -51,31 +51,32 @@ class ParsimoniousLM(BaseEstimator):
 
     def lm(self, document, iterations, eps):
         tf = self.vectorizer.transform([document]).toarray()[0]
-        ptf = np.log(tf > 0) - np.log((tf > 0).sum())
+        tf = np.array(tf, dtype=np.float)
+        ptf = tf / tf.sum()
         ptf = self.EM(tf, ptf, iterations, eps)
         return ptf
 
     def EM(self, tf, ptf, iterations, eps):
-        tf = np.log(tf)
+        tf = tf
         for i in range(1, iterations + 1):
-            ptf += self.weight
+            ptf *= self.weight
 
-            E = tf + ptf - np.logaddexp(self.pc, ptf)
-            M = E - logsum(E) # np.logaddexp.reduce(E)
+            E = tf * ptf / (self.pc + ptf) #np.logaddexp(self.pc, ptf)
+            M = E / E.sum()# - np.logaddexp.reduce(E)
 
-            diff = M - ptf
+            diff = abs(M - ptf)
             ptf = M
-            if (diff < eps).all():
-                break
+
         return ptf
 
     def fit(self, X, y=None):
-        cf = np.array(self.vectorizer.fit_transform(X).sum(axis=0))[0]
-        self.pc = (np.log(cf) - np.log(np.sum(cf))) + np.log(1 - self.weight)
+        cf = np.array(self.vectorizer.fit_transform(X).sum(axis=0), dtype=np.float)[0]
+        #self.pc = (np.log(cf) - np.log(np.sum(cf))) + np.log(1 - self.weight)
+        self.pc = (cf / np.sum(cf)) * (1 - self.weight)
         return self
 
     def transform(self, X):
-        return np.exp(np.array([self.lm(x) for x in X]))
+        return np.array([self.lm(x, self.iterations, self.eps) for x in X])
 
     def cross_entropy(self, qlm, rlm):
         return -np.sum(np.exp(qlm) * np.logaddexp(self.pc, rlm + self.weight))
@@ -103,4 +104,4 @@ def demo():
     print([(documents[i], score) for i, score in sorted(plm.predict_proba(qlm), key=lambda i: i[1])])
 
 if __name__ == '__main__':
-    demo()
+    pass #demo()

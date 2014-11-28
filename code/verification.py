@@ -2,7 +2,7 @@ import glob
 import logging
 
 logging.basicConfig(
-    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.WARN)
+    format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
 import os
 import random
@@ -55,6 +55,7 @@ except:
     # if that fails, fall back to the numba-version (which is still pretty
     # fast)
     from numba import jit
+    logging.info("USING NUMBA")
 
     @jit('float64(float64[:],float64[:])')
     def minmax(a, b):
@@ -88,7 +89,8 @@ DISTANCE_METRICS = {"divergence": divergence,
 def prepare_corpus(dirname, text_cutoff):
     underscore = re.compile(r'\_')
     authors, titles, texts = [], [], []
-    for filename in sorted(glob.glob(dirname + "/*.txt")):
+    for filename in sorted(glob.glob(dirname + "/*")):
+        logging.info("Reading file: %s" % filename)
         if '_' in filename:
             author, title = underscore.split(
                 os.path.split(filename)[-1].replace(".txt", ""), maxsplit=1)
@@ -335,8 +337,10 @@ class Verification(base.BaseEstimator):
                              (title_i, author_i, title_j, author_j, self.scores[index][1]))
                 r_distances[i,j] = self.scores[index][1]
                 r_distances[j,i] = r_distances[i,j]
-            tree = dendrogram(linkage(r_distances, method='single'), labels=devel_titles, orientation="left", leaf_font_size=3)
-            plt.savefig("dist.pdf")
+            for method in ('single', 'complete', 'average', 'ward'):
+                plt.figure()
+                tree = dendrogram(linkage(r_distances, method=method), labels=devel_titles, orientation="left", leaf_font_size=3)
+                plt.savefig("%s-dist.pdf" % method)
         else:
             r_distances = np.zeros((n_devel_samples, n_devel_samples))
             # verify each pair:
