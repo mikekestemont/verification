@@ -57,7 +57,7 @@ pipelines = {
 
 distance_metrics = {
     "minmax": minmax,
-    "manhattan": cityblock,
+    "cityblock": cityblock,
     "euclidean": euclidean,
     "cosine": cosine,
     "divergence": divergence,
@@ -70,7 +70,7 @@ class Verification(object):
                  sample_iterations=10, n_potential_imposters=30,
                  n_actual_imposters=10, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
-                 tfidf_norm='l2'):
+                 ngram_range=(1, 1), tfidf_norm='l2'):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -87,7 +87,8 @@ class Verification(object):
         self.em_iterations = em_iterations
         self.tfidf_norm = tfidf_norm
         self.rnd = np.random.RandomState(random_state)
-        self.parameters = {'tf__max_features': n_features}
+        self.parameters = {'tf__max_features': n_features,
+                           'tf__ngram_range': ngram_range}
         if self.vector_space_model == 'idf':
             self.parameters['tfidf__norm'] = tfidf_norm
         elif self.vector_space_model == 'plm':
@@ -123,7 +124,7 @@ class Verification(object):
         distances, labels = [], []
         test_pairs = self._setup_test_pairs()
         for k, (i, j) in enumerate(test_pairs):
-            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)+1))
+            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
             distances.append(self.metric(self.X_dev[i], self.X_dev[j]))
             labels.append(
                 "same_author" if self.dev_authors[i] == self.dev_authors[j] else
@@ -135,7 +136,7 @@ class Verification(object):
     def _verification_with_sampling(self):
         test_pairs = self._setup_test_pairs()
         for k, (i, j) in enumerate(test_pairs):
-            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)+1))
+            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
             author_i, author_j = self.dev_authors[i], self.dev_authors[j]
             train_sims = []
             for k in range(self.X_train.shape[0]):
