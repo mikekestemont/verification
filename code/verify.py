@@ -177,10 +177,11 @@ def evaluate_predictions(results, sample=False):
     test_scores = map(threshold_fn, test_results)
     return test_scores, dev_t
 
-def prec_recall_curve(scores, dev_t, fontsize=7):
+def prec_recall_curve(scores, dev_t, filename="prec_rec.pdf", fontsize=7):
     fig = sb.plt.figure()
     sb.plt.xlabel("recall", fontsize=fontsize)
     sb.plt.ylabel("precision", fontsize=fontsize)
     sb.plt.xlim(0, 1); sb.plt.ylim(0, 1)
     _, _ precisions, recalls = zip(*scores)
     sb.plt.plot(precisions, recalls)
+    sb.plt.savefig(filename)
