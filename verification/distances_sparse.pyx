@@ -50,5 +50,5 @@ def sparse_divergence(floating1d X_data, int[:] X_indices, int[:] X_indptr,
     for i in range(n_features):
         a, b = xrow[i], yrow[i]
         if a != b:
-        divergence += square((2.0 * (a-b)) / (a+b))
+            divergence += square((2.0 * (a-b)) / (a+b))
     return divergence
