@@ -17,7 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
 from sparse_plm import SparsePLM
 
-from distance import minmax
+from distances import minmax, divergence
 
 
 rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
