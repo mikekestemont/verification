@@ -13,7 +13,7 @@ logging.info("preparing corpus")
 X_train = prepare_corpus(train)
 X_dev = prepare_corpus(dev)
 verifier = Verification(random_state=1,
-                        metric='cosine', sample_authors=False,
+                        metric='minmax', sample_authors=True,
                         n_features=10000,
                         n_test_pairs=20000, em_iterations=10,
                         vector_space_model='std', weight=0.01)
