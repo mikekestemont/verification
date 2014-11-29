@@ -1,10 +1,12 @@
 import logging
+
 from verification.verification import Verification, evaluate_predictions
-from verification.verification import prec_recall_curve, plot_test_results
+from verification.plotting import prec_recall_curve, plot_test_results
 from verification.verification import get_result_for_threshold
 from verification.preprocessing import prepare_corpus
 
-logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
+                    level=logging.INFO)
 
 train, dev = "../data/du_essays", "../data/du_essays"
 logging.info("preparing corpus")
