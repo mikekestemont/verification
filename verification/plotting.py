@@ -10,13 +10,13 @@ rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
 
 sb.set_style("darkgrid", rc=rc)
 
-def prec_recall_curve(scores, dev_t, filename="prec_rec.pdf", fontsize=7):
+def prec_recall_curve(scores, filename="prec_rec.pdf", fontsize=7):
     fig = sb.plt.figure()
     sb.plt.xlabel("recall", fontsize=fontsize)
     sb.plt.ylabel("precision", fontsize=fontsize)
     sb.plt.xlim(0, 1); sb.plt.ylim(0, 1)
     _, _, precisions, recalls = zip(*scores)
-    sb.plt.plot(precisions, recalls)
+    sb.plt.plot(recalls, precisions)
     sb.plt.savefig(filename)
 
 def plot_test_densities(results, dev_t, filename="test_densities.pdf",
