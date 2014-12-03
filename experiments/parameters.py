@@ -1,3 +1,7 @@
+import logging
+logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
+                    level=logging.WARN)
+
 import sys
 from itertools import product
 from operator import mul
