@@ -3,6 +3,7 @@ import logging
 logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s",
                     level=logging.WARN)
 
+import sys
 from itertools import product
 from operator import mul
 
@@ -41,17 +42,13 @@ def run_experiment(parameters, X_train, X_dev):
     return (next((f1, p, r) for f1, t, p, r in predictions if t == dev_t),
             parameters)
 
-corpora = [('../data/du_essays', '../data/du_essays'),
-           ('../data/caesar_background', '../data/caesar_devel')]
+X_train = prepare_corpus(sys.argv[1])
+X_dev = prepare_corpus(sys.argv[2])
+results = Parallel(n_jobs=20)(
+    delayed(run_experiment)(params, X_train, X_dev) for params in param_iter(parameters))
 
-for train, dev in corpora:
-    X_train = prepare_corpus(train)
-    X_dev = prepare_corpus(dev)
-    results = Parallel(n_jobs=20)(
-        delayed(run_experiment)(params, X_train, X_dev) for params in param_iter(parameters))
-
-    with open("results.txt", "a") as outfile:
-        for result, params in results:
-            outfile.write("%s\t%s\n" % (
-                '\t'.join(map(str, result)),
-                '\t'.join(str(value) for _, value in sorted(params.items()))))
+with open("results.txt", "a") as outfile:
+    for result, params in results:
+        outfile.write("%s\t%s\n" % (
+            '\t'.join(map(str, result)),
+            '\t'.join(str(value) for _, value in sorted(params.items()))))
