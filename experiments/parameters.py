@@ -1,5 +1,8 @@
 import logging
 
+logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s",
+                    level=logging.WARN)
+
 from itertools import product
 from operator import mul
 
@@ -7,17 +10,16 @@ import numpy as np
 from joblib import Parallel, delayed
 
 from verification.verification import Verification, evaluate_predictions
+from verification.preprocessing import prepare_corpus
 
-logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s",
-                    level=logging.INFO)
 
 parameters = {
-    'n_features': [500, 1000, 2000, 5000, 10000, 50000, 100000, 500000],
-    'random_prop': [0.2, 0.5],
+    'n_features': [50, 500, 1000, 2000, 5000, 10000, 50000, 100000, 500000],
     'metric': ['minmax', 'euclidean', 'cityblock', 'divergence', 'cosine'],
     'vector_space_model': ['std', 'plm', 'idf', 'tf'],
-    'weight': np.arange(0.001, 1.001, 0.001),
-    'em_iterations': [10, 50, 100]
+    'weight': np.arange(0.001, 1.001, 0.01),
+    'em_iterations': [10, 50, 100],
+    'random_state': [2014]
 }
 
 
@@ -26,9 +28,10 @@ def param_iter(parameters):
     num_settings = reduce(mul, (len(v) for v in parameters.values()))
     i = 0
     for v in product(*values):
-        logging.info("Processing parameter setting %s / %s" % (i, num_settings))
+        logging.warn("Processing parameter setting %s / %s" % (i, num_settings))
         yield dict(zip(keys, v))
         i += 1
+
 
 def run_experiment(parameters, X_train, X_dev):
     verification = Verification(**parameters)
@@ -38,11 +41,17 @@ def run_experiment(parameters, X_train, X_dev):
     return (next((f1, p, r) for f1, t, p, r in predictions if t == dev_t),
             parameters)
 
-results = Parallel(n_jobs=20)(
-    delayed(run_experiment)(params) for params in param_iter(parameters))
+corpora = [('../data/du_essays', '../data/du_essays'),
+           ('../data/caesar_background', '../data/caesar_devel')]
 
-with open("results.txt", "w") as outfile:
-    for result, params in results:
-        outfile.write("%s\t%s\n" % (
-            '\t'.join(map(str, result)),
-            '\t'.join(value for _, value in sorted(params.items()))))
+for train, dev in corpora:
+    X_train = prepare_corpus(train)
+    X_dev = prepare_corpus(dev)
+    results = Parallel(n_jobs=20)(
+        delayed(run_experiment)(params, X_train, X_dev) for params in param_iter(parameters))
+
+    with open("results.txt", "a") as outfile:
+        for result, params in results:
+            outfile.write("%s\t%s\n" % (
+                '\t'.join(map(str, result)),
+                '\t'.join(str(value) for _, value in sorted(params.items()))))
