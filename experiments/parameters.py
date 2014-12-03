@@ -1,8 +1,3 @@
-import logging
-
-logging.basicConfig(format="%(asctime)s : %(levelname)s : %(message)s",
-                    level=logging.WARN)
-
 import sys
 from itertools import product
 from operator import mul
@@ -26,12 +21,8 @@ parameters = {
 
 def param_iter(parameters):
     keys, values = zip(*sorted(parameters.items()))
-    num_settings = reduce(mul, (len(v) for v in parameters.values()))
-    i = 0
     for v in product(*values):
-        logging.warn("Processing parameter setting %s / %s" % (i, num_settings))
         yield dict(zip(keys, v))
-        i += 1
 
 
 def run_experiment(parameters, X_train, X_dev):
@@ -44,7 +35,7 @@ def run_experiment(parameters, X_train, X_dev):
 
 X_train = prepare_corpus(sys.argv[1])
 X_dev = prepare_corpus(sys.argv[2])
-results = Parallel(n_jobs=20)(
+results = Parallel(n_jobs=20, verbose=1)(
     delayed(run_experiment)(params, X_train, X_dev) for params in param_iter(parameters))
 
 with open("results.txt", "a") as outfile:
