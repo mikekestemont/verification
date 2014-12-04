@@ -14,14 +14,13 @@ from verification.preprocessing import prepare_corpus
 
 
 parameters = {
-    'n_features': [50, 500, 1000, 2000, 5000, 10000, 50000, 100000, 500000],
+    'n_features': [50, 500, 1000, 5000, 10000, 50000, 100000, 500000],
     'metric': ['minmax', 'euclidean', 'cityblock', 'divergence', 'cosine'],
     'vector_space_model': ['std', 'plm', 'idf', 'tf'],
     'weight': np.arange(0.001, 1.001, 0.01),
-    'em_iterations': [10, 50, 100],
+    'em_iterations': [10, 50],
     'random_state': [2014]
 }
-
 
 def param_iter(parameters):
     keys, values = zip(*sorted(parameters.items()))
@@ -33,9 +32,11 @@ def run_experiment(parameters, X_train, X_dev):
     verification = Verification(**parameters)
     verification.fit(X_train, X_dev)
     results = list(verification.verify())
-    predictions, dev_t = evaluate_predictions(results)
-    return (next((f1, p, r) for f1, t, p, r in predictions if t == dev_t),
-            parameters)
+    dev_results = results[:int(len(results) / 2.0)]
+    test_results = results[int(len(results) / 2.0):]
+    dev_predictions, dev_t, _, _ = evaluate_predictions(dev_results)
+    test_predictions = evaluate_predictions(test_results, t=dev_t)
+    return test_predictions, parameters
 
 X_train = prepare_corpus(sys.argv[1])
 X_dev = prepare_corpus(sys.argv[2])

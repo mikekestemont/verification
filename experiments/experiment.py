@@ -2,6 +2,7 @@ import logging
 
 from verification.verification import Verification, evaluate_predictions
 from verification.plotting import prec_recall_curve, plot_test_results
+from verification.plotting import plot_test_densities
 from verification.verification import get_result_for_threshold
 from verification.preprocessing import prepare_corpus
 
@@ -21,6 +22,9 @@ logging.info("Starting verification")
 verifier.fit(X_train, X_dev)
 results = list(verifier.verify())
 logging.info("Computing results")
-predictions, dev_t = evaluate_predictions(results)
-plot_test_results(predictions, dev_t)
-print next(f1 for f1, t, _, _ in predictions if t == dev_t)
+dev_results = results[:int(len(results) / 2.0)]
+test_results = results[int(len(results) / 2.0):]
+dev_predictions, dev_t, _, _ = evaluate_predictions(dev_results)
+test_predictions = evaluate_predictions(test_results, t=dev_t)
+plot_test_results(test_predictions, dev_t)
+plot_test_densities(results=results, dev_t=dev_t)

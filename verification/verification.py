@@ -178,16 +178,26 @@ def get_result_for_threshold(results, t, sample=False):
     return (f1_score(true, preds), t,
             precision_score(true, preds), recall_score(true, preds))
 
-def evaluate_predictions(results, sample=False):
-    """Given a list of tuples of (label, score), return all scores
-    for 50% of the tuples at the best threshold in the other 50%."""
+def evaluate_predictions(results, sample=False, t=None):
     results = list(results)
-    dev_results = results[:int(len(results) / 2.0)]
-    test_results = results[int(len(results) / 2.0):]
-    thresholds = np.arange(0.001, 1.001, 0.001)
-    dev_f1, dev_t, _, _ = max(
-        (get_result_for_threshold(dev_results, t, sample) for t in thresholds),
-        key=itemgetter(0))
-    test_scores = [get_result_for_threshold(test_results, t, sample)
-                   for t in thresholds]
-    return test_scores, dev_t
+    if t is None:
+        thresholds = np.arange(0.001, 1.001, 0.001)
+        return max((get_result_for_threshold(results, t, sample) for t in thresholds),
+                   key=itemgetter(0))
+    return get_result_for_threshold(results, t, sample)
+
+
+
+# def evaluate_predictions(results, sample=False):
+#     """Given a list of tuples of (label, score), return all scores
+#     for 50% of the tuples at the best threshold in the other 50%."""
+#     results = list(results)
+#     dev_results = results[:int(len(results) / 2.0)]
+#     test_results = results[int(len(results) / 2.0):]
+#     thresholds = np.arange(0.001, 1.001, 0.001)
+#     dev_f1, dev_t, _, _ = max(
+#         (get_result_for_threshold(dev_results, t, sample) for t in thresholds),
+#         key=itemgetter(0))
+#     Test_scores = [get_result_for_threshold(test_results, t, sample)
+#                    for t in thresholds]
+#     return test_scores, dev_t
