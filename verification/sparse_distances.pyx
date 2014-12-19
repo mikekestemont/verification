@@ -5,24 +5,25 @@ from libc.stdlib cimport *
 from libc.math cimport fabs, sqrt
 
 from scipy.linalg.blas import fblas
+from scipy.linalg import norm
 
 cdef fused floating1d:
     float[::1]
     double[::1]
 
-@cython.boundscheck(False)
-cdef double norm(double[:] x, int[:] indices):
-    cdef double ans = 0
-    cdef size_t i
-    for i in range(indices.shape[0]):
-        ans += x[indices[i]] * x[indices[i]]
-    return sqrt(ans)
+# @cython.boundscheck(False)
+# cdef double norm(double[:] x, int[:] indices):
+#     cdef double ans = 0
+#     cdef size_t i
+#     for i in range(indices.shape[0]):
+#         ans += x[indices[i]] * x[indices[i]]
+#     return sqrt(ans)
 
 @cython.boundscheck(False)
 def sparse_euclidean(floating1d X_data, int[:] X_indices, int[:] X_indptr,
                      floating1d Y_data, int[:] Y_indices, int[:] Y_indptr,
                      int n_features, int[:] indices):
-    cdef double[::1] row = np.empty(n_features)
+    cdef double[::1] row = np.zeros(n_features)
     cdef double dist = 0.0
     cdef np.npy_intp j
     for j in range(X_indptr[0], X_indptr[1]):
@@ -35,7 +36,7 @@ def sparse_euclidean(floating1d X_data, int[:] X_indices, int[:] X_indptr,
 def sparse_cityblock(floating1d X_data, int[:] X_indices, int[:] X_indptr,
                      floating1d Y_data, int[:] Y_indices, int[:] Y_indptr,
                      int n_features, int[:] indices):
-    cdef double[::1] row = np.empty(n_features)
+    cdef double[::1] row = np.zeros(n_features)
     cdef double dist = 0.0
     cdef np.npy_intp j
     for j in range(X_indptr[0], X_indptr[1]):
