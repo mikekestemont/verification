@@ -12,6 +12,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.neighbors import dist_metrics
 from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.preprocessing import StandardScaler
 from gensim.utils import tokenize
@@ -164,28 +165,22 @@ class Verification(object):
             return self._verification_with_sampling()
         return self._verification()
 
-def get_result_for_threshold(results, t, sample=False):
-    """Given a list of tuples of (label, score), return the f1,
-    precision and recall score at threshold t."""
-    preds, true = [], []
-    # kan als we 1 - sigmas.mean() gebruiken, weg
-    for label, score in results:
-        if sample:
-            preds.append(1 if score >= t else 0)
-        else:
-            preds.append(1 if score <= t else 0)
-        true.append(1 if label == "same_author" else 0)
-    return (f1_score(true, preds), t,
-            precision_score(true, preds), recall_score(true, preds))
 
-def evaluate_predictions(results, sample=False, t=None):
-    results = list(results)
-    if t is None:
-        thresholds = np.arange(0.001, 1.001, 0.001)
-        return max((get_result_for_threshold(results, t, sample) for t in thresholds),
-                   key=itemgetter(0))
-    return get_result_for_threshold(results, t, sample)
+def evaluate(results, beta=2):
+    y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
+    scores = np.array([score for _, score in results])
+    scores = 1 - scores # highest similarity highest in rank
+    precisions, recalls, thresholds = precision_recall_curve(y_true, scores)
+    f_scores = beta * (precisions * recalls) / (precisions + recalls)
+    return f_scores, precisions, recalls, thresholds
 
+def evaluate_with_threshold(results, t, beta=2):
+    y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
+    preds = np.array([1 if score <= t else 0 for _, score in results])
+    precision = precision_score(y_true, preds)
+    recall = recall_score(y_true, preds)
+    f_score = beta * (precision * recall) / (precision + recall)
+    return f_score, precision, recall
 
 
 # def evaluate_predictions(results, sample=False):
