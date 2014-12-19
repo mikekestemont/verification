@@ -14,12 +14,9 @@ cdef fused floating1d:
 @cython.boundscheck(False)
 cdef double norm(double[:] x, int[:] indices):
     cdef double ans = 0.0
-    cdef double _d
     cdef size_t i
     for i in range(indices.shape[0]):
-        _d = x[indices[i]] * x[indices[i]]
-        assert not (np.isnan(_d) or np.isinf(_d))
-        ans += _d
+        ans += x[indices[i]] * x[indices[i]]
     return sqrt(ans)
 
 @cython.boundscheck(False)
