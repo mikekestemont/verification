@@ -16,7 +16,7 @@ cdef double norm(double[:] x, int[:] indices):
     cdef double ans = 0.0
     cdef size_t i
     for i in range(indices.shape[0]):
-        _d = x[indices[i]] * x[indices[i]]
+        double _d = x[indices[i]] * x[indices[i]]
         assert not (np.isnan(_d) or np.isinf(_d))
         ans += _d
     return sqrt(ans)
