@@ -5,19 +5,21 @@ from libc.stdlib cimport *
 from libc.math cimport fabs, sqrt
 
 from scipy.linalg.blas import fblas
-from scipy.linalg import norm
+
 
 cdef fused floating1d:
     float[::1]
     double[::1]
 
-# @cython.boundscheck(False)
-# cdef double norm(double[:] x, int[:] indices):
-#     cdef double ans = 0
-#     cdef size_t i
-#     for i in range(indices.shape[0]):
-#         ans += x[indices[i]] * x[indices[i]]
-#     return sqrt(ans)
+@cython.boundscheck(False)
+cdef double norm(double[:] x, int[:] indices):
+    cdef double ans = 0.0
+    cdef size_t i
+    for i in range(indices.shape[0]):
+        _d = x[indices[i]] * x[indices[i]]
+        assert not (np.isnan(_d) or np.isinf(_d))
+        ans += _d
+    return sqrt(ans)
 
 @cython.boundscheck(False)
 def sparse_euclidean(floating1d X_data, int[:] X_indices, int[:] X_indptr,
