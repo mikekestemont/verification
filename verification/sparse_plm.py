@@ -34,7 +34,8 @@ class SparsePLM(BaseEstimator):
                 p_data = M
                 if (diff < self.eps).all():
                     break
-            assert not np.isnan(np.dot(p_data, p_data))
+            _d = np.dot(p_data, p_data)
+            assert not (np.isnan(_d) or np.isinf(_d))
             X.data[begin_col: end_col] = p_data
         return X
 

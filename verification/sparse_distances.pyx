@@ -16,7 +16,6 @@ cdef double norm(double[:] x, int[:] indices):
     cdef size_t i
     for i in range(indices.shape[0]):
         ans += x[indices[i]] * x[indices[i]]
-    assert ans >= 0
     return sqrt(ans)
 
 @cython.boundscheck(False)
