@@ -120,7 +120,9 @@ class Verification(object):
         test_pairs = self._setup_test_pairs()
         for k, (i, j) in enumerate(test_pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
-            distances.append(self.metric(self.X_dev[i], self.X_dev[j]))
+            dist = self.metric(self.X_dev[i], self.X_dev[j])
+            assert not (np.isnan(dist) or np.isinf(dist))
+            distances.append(dist)
             labels.append(
                 "same_author" if self.dev_authors[i] == self.dev_authors[j] else
                 "diff_author")

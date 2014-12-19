@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
 from sklearn.base import BaseEstimator
-from sklearn.feature_extraction.text import CountVectorizer
 
 
 class SparsePLM(BaseEstimator):
@@ -35,6 +34,7 @@ class SparsePLM(BaseEstimator):
                 p_data = M
                 if (diff < self.eps).all():
                     break
+            assert not np.isnan(np.dot(p_data, p_data))
             X.data[begin_col: end_col] = p_data
         return X
 
