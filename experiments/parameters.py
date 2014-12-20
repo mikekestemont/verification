@@ -9,16 +9,16 @@ from operator import mul
 import numpy as np
 from joblib import Parallel, delayed
 
-from verification.verification import Verification, evaluate_predictions
+from verification.verification import Verification, evaluate, evaluate_with_threshold
 from verification.preprocessing import prepare_corpus
 
 
 parameters = {
-    'n_features': [50, 500, 1000, 5000, 10000, 50000, 100000, 500000],
-    'metric': ['minmax', 'euclidean', 'cityblock', 'divergence', 'cosine'],
-    'vector_space_model': ['std', 'plm', 'idf', 'tf'],
-    'weight': np.arange(0.001, 1.001, 0.01),
-    'em_iterations': [10, 50],
+    'n_features': np.arange(500, 50000, 500),
+    'metric': ['euclidean', 'minmax', 'cityblock', 'divergence', 'cosine'],
+    'vector_space_model': ['plm', 'std', 'idf', 'tf'],
+    'weight': [0.05],
+    'em_iterations': [50],
     'random_state': [2014]
 }
 
@@ -34,16 +34,18 @@ def run_experiment(parameters, X_train, X_dev):
     results = list(verification.verify())
     dev_results = results[:int(len(results) / 2.0)]
     test_results = results[int(len(results) / 2.0):]
-    dev_predictions, dev_t, _, _ = evaluate_predictions(dev_results)
-    test_predictions = evaluate_predictions(test_results, t=dev_t)
-    return test_predictions, parameters
+    dev_f, dev_p, dev_r, dev_t = evaluate(dev_results)
+    best_t = dev_t[dev_f.argmax()]
+    test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+    return [test_f, test_p, test_r], parameters
 
 X_train = prepare_corpus(sys.argv[1])
 X_dev = prepare_corpus(sys.argv[2])
-results = Parallel(n_jobs=20, verbose=1)(
+results = Parallel(n_jobs=12, verbose=5)(
     delayed(run_experiment)(params, X_train, X_dev) for params in param_iter(parameters))
+#results = [run_experiment(params, X_train, X_dev) for params in param_iter(parameters)]
 
-with open("results.txt", "a") as outfile:
+with open(sys.argv[3], "w") as outfile:
     for result, params in results:
         outfile.write("%s\t%s\n" % (
             '\t'.join(map(str, result)),
