@@ -4,11 +4,6 @@ from sklearn.metrics import precision_recall_curve, precision_recall_fscore_supp
 from sklearn.metrics import average_precision_score, auc_score, precision_score
 from sklearn.metrics import recall_score
 
-def one_error(results):
-    y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
-    scores = np.array([score for _, score in results])
-    return y_true[scores.argmax()]
-
 def evaluate(results, beta=2):
     y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
     scores = np.array([score for _, score in results])

@@ -64,7 +64,8 @@ class Verification(object):
                  sample_iterations=10, n_potential_imposters=30,
                  n_actual_imposters=10, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
-                 ngram_range=(1, 1), tfidf_norm='l2'):
+                 ngram_range=(1, 1), tfidf_norm='l2', top_rank=1,
+                 balanced_test_pairs=False):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -81,6 +82,9 @@ class Verification(object):
         self.em_iterations = em_iterations
         self.tfidf_norm = tfidf_norm
         self.rnd = np.random.RandomState(random_state)
+        if balanced_test_pairs:
+            self._setup_test_pairs = self._setup_balanced_test_pairs
+        self.top_rank = top_rank
         self.parameters = {'tf__max_features': n_features,
                            'tf__ngram_range': ngram_range}
         if self.vector_space_model == 'idf':
@@ -112,7 +116,27 @@ class Verification(object):
                     if title_i.split("_")[0] != title_j.split('_')[0]:
                         test_pairs.append((i, j))
         self.rnd.shuffle(test_pairs)
+        if self.n_test_pairs == None:
+            return test_pairs
         return test_pairs[:self.n_test_pairs]
+
+    def _setup_balanced_test_pairs(self):
+        same_author_pairs, diff_author_pairs = [], []
+        for i in range(len(self.dev_titles)):
+            for j in range(len(self.dev_titles)):
+                if i != j:
+                    title_i, title_j = self.dev_titles[i], self.dev_titles[j]
+                    if title_i.split("_")[0] != title_j.split('_')[0]:
+                        if self.dev_authors[i] == self.dev_authors[j]:
+                            same_author_pairs.append((i, j))
+                        else:
+                            diff_author_pairs.append((i, j))
+        self.rnd.shuffle(same_author_pairs)
+        self.rnd.shuffle(diff_author_pairs)
+        same_author_pairs = same_author_pairs[:int(self.n_test_pairs / 2.0)]
+        diff_author_pairs = diff_author_pairs[:int(self.n_test_pairs / 2.0)]
+        return same_author_pairs + diff_author_pairs
+
 
     def _verification(self):
         distances, labels = [], []
@@ -143,7 +167,7 @@ class Verification(object):
             indexes, imposters, _ = zip(*train_sims[:self.n_potential_imposters])
             X_imposters = self.X_train[list(indexes), :]
             targets = 0.0
-            sigmas = np.zeros(self.sample_iterations)
+            #sigmas = np.zeros(self.sample_iterations)
             for iteration in range(self.sample_iterations):
                 rnd_imposters = self.rnd.randint(
                     X_imposters.shape[0], size=self.n_actual_imposters)
@@ -151,14 +175,26 @@ class Verification(object):
                 rnd_features = self.rnd.randint(
                     X_truncated.shape[1], size=self.random_prop)
                 vec_i, vec_j = self.X_dev[i], self.X_dev[j]
-                most_similar = min(self.metric(vec_i, X_truncated[k], rnd_features)
-                                   for k in range(self.n_actual_imposters))
-                target_dist = self.metric(vec_i, vec_j, rnd_features)
-                if target_dist <= most_similar:
-                    targets += 1
-                sigmas[iteration] = targets / (iteration + 1.0)
+                # most_similar = min(self.metric(vec_i, X_truncated[k], rnd_features)
+                #                    for k in range(self.n_actual_imposters))
+                # target_dist = self.metric(vec_i, vec_j, rnd_features)
+                # if target_dist <= most_similar:
+                #     targets += 1
+                all_candidates = [self.metric(vec_i, vec_j, rnd_features)]
+                all_candidates += [self.metric(vec_i, X_truncated[k], rnd_features)
+                                   for k in range(self.n_actual_imposters)]
+                all_candidates = np.array(all_candidates)
+                # find rank of target in ranking
+                rank_target = np.where(all_candidates.argsort() == 0)[0][0] + 1
+                if self.top_rank == 1:
+                    targets += 1.0 if rank_target == 1 else 0.0
+                else:
+                    if rank_target <= self.top_rank:
+                        targets += 1.0 / rank_target
+                #sigmas[iteration] = targets / (iteration + 1.0)
             yield ("same_author" if author_i == author_j else "diff_author",
-                   1 - sigmas.mean())
+                   #1 - sigmas.mean())
+                   1 - targets / self.sample_iterations)
 
     def verify(self):
         "Start the verification procedure."
