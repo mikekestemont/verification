@@ -137,7 +137,9 @@ class Verification(object):
         self.rnd.shuffle(diff_author_pairs)
         same_author_pairs = same_author_pairs[:int(self.n_test_pairs / 2.0)]
         diff_author_pairs = diff_author_pairs[:int(self.n_test_pairs / 2.0)]
-        return same_author_pairs + diff_author_pairs
+        test_pairs = same_author_pairs + diff_author_pairs
+        self.rnd.shuffle(test_pairs) # needed for proportional evaluation
+        return test_pairs
 
 
     def _verification(self):

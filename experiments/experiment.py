@@ -12,7 +12,7 @@ from verification.preprocessing import prepare_corpus
 import seaborn as sb
 
 
-train, dev = "../data/du_essays", "../data/du_essays"
+train, dev = "../data/caesar_background", "../data/caesar_devel"
 logging.info("preparing corpus")
 X_train = prepare_corpus(train)
 X_dev = prepare_corpus(dev)
@@ -20,9 +20,9 @@ verifier = Verification(random_state=1,
                         metric='minmax', sample_authors=False,
                         n_features=1000,
                         n_test_pairs=10000, em_iterations=100,
-                        vector_space_model='tf', weight=0.3,
-                        n_actual_imposters=10, eps=0.01,
-                        norm="l2", top_rank=10, balanced_test_pairs=False)
+                        vector_space_model='idf', weight=0.2,
+                        n_actual_imposters=10, eps=0.001,
+                        norm="l2", top_rank=10, balanced_test_pairs=True)
 logging.info("Starting verification")
 verifier.fit(X_train, X_dev)
 results = list(verifier.verify())
@@ -39,6 +39,7 @@ print "F: %.3f, P: %.3f, R: %.3f, AP: %.3f" % (
     test_f, test_p, test_r, average_precision_score(test_results))
 
 N = sum(l == "same_author" for l, _ in dev_results)
+print N
 print rank_predict(test_results, method="proportional", N=N)
 print rank_predict(test_results, method="calibrated")
 print rank_predict(test_results, method="break-even-point")

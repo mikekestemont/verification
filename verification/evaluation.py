@@ -40,7 +40,7 @@ def rank_predict(results, method="proportional", N=None):
     elif method == "break-even-point":
         precisions, recalls, thresholds = precision_recall_curve(y_true, scores)
         f_scores = 2 * precisions * recalls / (precisions + recalls)
-        index = f_scores.argmax()
+        index = np.nanargmax(f_scores)
         return f_scores[index], precisions[index], recalls[index]
     else:
         raise ValueError("Unsupported method `%s`" % method)
