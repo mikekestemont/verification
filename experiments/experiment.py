@@ -16,7 +16,7 @@ X_dev = prepare_corpus(dev)
 verifier = Verification(random_state=1,
                         metric='minmax', sample_authors=False,
                         n_features=10000,
-                        n_test_pairs=2000, em_iterations=10,
+                        n_test_pairs=10000, em_iterations=10,
                         vector_space_model='tf', weight=0.01,
                         n_actual_imposters=10,
                         top_rank=10)
