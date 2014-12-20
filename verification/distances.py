@@ -5,8 +5,8 @@ import numpy as np
 def _dist(X, Y, fn, indices):
     if indices is None:
         indices = list(set(X.indices.tolist() + Y.indices.tolist()))
-    if not indices:
-        return 0.0 # assumes all metrics in range 0 : 1
+#    if not indices:
+#        return 0.0 # assumes all metrics in range 0 : 1
     indices = np.array(indices, dtype=np.int32)
     return fn(X.data, X.indices, X.indptr,
               Y.data, Y.indices, Y.indptr,

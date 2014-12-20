@@ -64,7 +64,7 @@ class Verification(object):
                  sample_iterations=10, n_potential_imposters=30,
                  n_actual_imposters=10, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
-                 ngram_range=(1, 1), tfidf_norm='l2', top_rank=1,
+                 ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
                  balanced_test_pairs=False):
 
         self.n_features = n_features
@@ -80,7 +80,7 @@ class Verification(object):
         self.vector_space_model = vector_space_model
         self.weight = weight
         self.em_iterations = em_iterations
-        self.tfidf_norm = tfidf_norm
+        self.norm = norm
         self.rnd = np.random.RandomState(random_state)
         if balanced_test_pairs:
             self._setup_test_pairs = self._setup_balanced_test_pairs
@@ -88,10 +88,12 @@ class Verification(object):
         self.parameters = {'tf__max_features': n_features,
                            'tf__ngram_range': ngram_range}
         if self.vector_space_model == 'idf':
-            self.parameters['tfidf__norm'] = tfidf_norm
+            self.parameters['tfidf__norm'] = norm
         elif self.vector_space_model == 'plm':
+            self.parameters['plm__eps'] = eps
             self.parameters['plm__weight'] = weight
             self.parameters['plm__iterations'] = em_iterations
+            self.parameters['plm__norm'] = norm
 
     def fit(self, background_dataset, dev_dataset):
         self.train_data, self.train_titles, self.train_authors = background_dataset

@@ -1,13 +1,15 @@
+import logging
 import numpy as np
 import scipy.sparse as sp
 from sklearn.base import BaseEstimator
-
+from sklearn.preprocessing import normalize
 
 class SparsePLM(BaseEstimator):
-    def __init__(self, weight=0.1, iterations=50, eps=1e-9):
+    def __init__(self, weight=0.1, norm=None, iterations=50, eps=0.01):
         self.weight = weight
         self.iterations = iterations
         self.eps = eps
+        self.norm = norm
 
     def fit(self, X, y=None):
         cf = np.array(X.sum(axis=0), dtype=np.float64)[0]
@@ -27,16 +29,20 @@ class SparsePLM(BaseEstimator):
             p_data = np.ones(data.shape[0]) / data.shape[0]
             c_data = self.pc[X.indices[begin_col: end_col]]
             for iteration in range(1, self.iterations + 1):
+                logging.debug("Iteration %s" % iteration)
                 p_data *= self.weight
                 E = data * p_data / (c_data + p_data)
                 M = E / E.sum()
                 diff = np.abs(M - p_data)
                 p_data = M
                 if (diff < self.eps).all():
+                    logging.info("Broke early from EM")
                     break
             _d = np.dot(p_data, p_data)
             assert not (np.isnan(_d) or np.isinf(_d))
             X.data[begin_col: end_col] = p_data
+        if self.norm:
+            X = normalize(X, norm=self.norm)
         return X
 
     def fit_transform(self, X, y=None):
