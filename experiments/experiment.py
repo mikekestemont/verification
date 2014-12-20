@@ -18,11 +18,11 @@ X_train = prepare_corpus(train)
 X_dev = prepare_corpus(dev)
 verifier = Verification(random_state=1,
                         metric='minmax', sample_authors=False,
-                        n_features=1000,
+                        n_features=10000,
                         n_test_pairs=10000, em_iterations=100,
-                        vector_space_model='idf', weight=0.2,
-                        n_actual_imposters=10, eps=0.001,
-                        norm="l2", top_rank=10, balanced_test_pairs=True)
+                        vector_space_model='plm', weight=0.1,
+                        n_actual_imposters=10, eps=0.01,
+                        norm="l2", top_rank=10, balanced_test_pairs=False)
 logging.info("Starting verification")
 verifier.fit(X_train, X_dev)
 results = list(verifier.verify())

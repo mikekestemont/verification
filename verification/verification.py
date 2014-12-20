@@ -85,6 +85,8 @@ class Verification(object):
         if balanced_test_pairs:
             self._setup_test_pairs = self._setup_balanced_test_pairs
         self.top_rank = top_rank
+        # TODO: als we met plm werken is max_features eigen wat gek
+        #       omdat plm max)features gaat opzoeken...
         self.parameters = {'tf__max_features': n_features,
                            'tf__ngram_range': ngram_range}
         if self.vector_space_model == 'idf':
