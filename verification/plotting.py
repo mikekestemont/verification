@@ -37,10 +37,12 @@ def plot_test_densities(results, dev_t, filename="test_densities.pdf",
     sb.plt.savefig(filename)
     sb.plt.clf()
 
-def plot_test_results(scores, dev_t, filename="test_curve.pdf", fontsize=7):
+def plot_test_results(f1_scores, thresholds, precisions, recalls,
+                      dev_t, filename="test_curve.pdf", fontsize=7):
     fig = sb.plt.figure()
     c1, c2, c3, c4 = sb.color_palette("Set1")[:4]
-    f1_scores, thresholds, precisions, recalls = zip(*scores)
+    #print len(scores)
+    #f1_scores, thresholds, precisions, recalls = zip(*scores)
     sb.plt.plot(thresholds, f1_scores, label="F1 score", c=c1)
     sb.plt.plot(thresholds, precisions, label="Precision", c=c2)
     sb.plt.plot(thresholds, recalls, label="Recall", c=c3)

@@ -1,6 +1,7 @@
 import logging
 
-from verification.verification import Verification, evaluate, evaluate_with_threshold
+from verification.verification import Verification
+from verification.evaluation import evaluate, evaluate_with_threshold
 from verification.plotting import plot_test_densities, plot_test_results
 from verification.preprocessing import prepare_corpus
 import seaborn as sb
@@ -30,4 +31,4 @@ test_fscores, test_precisions, test_recalls, test_thresholds = evaluate(test_res
 sb.plt.plot(test_recalls, test_precisions)
 
 plot_test_densities(results=results, dev_t=best_t)
-plot_test_results([test_fscores[:-1], test_thresholds, test_precisions[:-1], test_recalls[:-1]], best_t)
+plot_test_results(test_fscores[:-1], test_thresholds, test_precisions[:-1], test_recalls[:-1], best_t)

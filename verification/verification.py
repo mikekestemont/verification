@@ -166,35 +166,3 @@ class Verification(object):
         if self.sample_authors or self.sample_features:
             return self._verification_with_sampling()
         return self._verification()
-
-
-def evaluate(results, beta=2):
-    y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
-    scores = np.array([score for _, score in results])
-    scores = 1 - scores # highest similarity highest in rank
-    precisions, recalls, thresholds = precision_recall_curve(y_true, scores)
-    f_scores = beta * (precisions * recalls) / (precisions + recalls)
-    return f_scores, precisions, recalls, thresholds
-
-def evaluate_with_threshold(results, t, beta=2):
-    y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
-    preds = np.array([1 if score <= t else 0 for _, score in results])
-    precision = precision_score(y_true, preds)
-    recall = recall_score(y_true, preds)
-    f_score = beta * (precision * recall) / (precision + recall)
-    return f_score, precision, recall
-
-
-# def evaluate_predictions(results, sample=False):
-#     """Given a list of tuples of (label, score), return all scores
-#     for 50% of the tuples at the best threshold in the other 50%."""
-#     results = list(results)
-#     dev_results = results[:int(len(results) / 2.0)]
-#     test_results = results[int(len(results) / 2.0):]
-#     thresholds = np.arange(0.001, 1.001, 0.001)
-#     dev_f1, dev_t, _, _ = max(
-#         (get_result_for_threshold(dev_results, t, sample) for t in thresholds),
-#         key=itemgetter(0))
-#     Test_scores = [get_result_for_threshold(test_results, t, sample)
-#                    for t in thresholds]
-#     return test_scores, dev_t
