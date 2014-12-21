@@ -21,7 +21,7 @@ X_train = prepare_corpus(train)
 X_dev = prepare_corpus(dev)
 
 all_scores = []
-metric = 'cosine'
+metric = 'cityblock'
 n_feature_ranges = np.arange(50, 10000, 250)
 for vector_space_model in ('std', 'tf', 'idf', 'plm'):
     df = pd.DataFrame(columns=['vector_space', 'n_features', 'F', 'P', 'R'])
@@ -31,9 +31,9 @@ for vector_space_model in ('std', 'tf', 'idf', 'plm'):
                                 metric=metric, sample_authors=False,
                                 n_features=n_features,
                                 n_test_pairs=10000, em_iterations=100,
-                                vector_space_model=vector_space_model, weight=0.3,
-                                n_actual_imposters=10, eps=0.1,
-                                top_rank=10)
+                                vector_space_model=vector_space_model, weight=0.2,
+                                n_actual_imposters=10, eps=0.01,
+                                top_rank=10, balanced_test_pairs=True)
         logging.info("Starting verification")
         verifier.fit(X_train, X_dev)
         results = list(verifier.verify())

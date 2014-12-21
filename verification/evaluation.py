@@ -27,6 +27,15 @@ def average_precision_score(results):
     return ap(y_true, scores)
 
 def rank_predict(results, method="proportional", N=None):
+    """Use the distance (or similarity) rankings to make a binary prediction.
+    There are 3 threshold methods:
+       1) proportional: set N proportional to N' in the training data.
+       2) calibrated: set N to the exact number of positives in the test data.
+       3) break-even-point: return the optimized F-score.
+    Note that the latter two make use of information in the test data not available
+    in real world applications. Theoretically however, they can show us valuable
+    insights about for instance the upper bound performance.
+    """
     y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
     scores = np.array([score for _, score in results])
     scores = 1 - scores # highest similarity highest in rank
