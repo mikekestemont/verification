@@ -88,7 +88,8 @@ class Verification(object):
         # TODO: als we met plm werken is max_features eigen wat gek
         #       omdat plm max)features gaat opzoeken...
         self.parameters = {'tf__max_features': n_features,
-                           'tf__ngram_range': ngram_range}
+                           'tf__ngram_range': ngram_range,
+                           'tf__min_df': 2}
         if self.vector_space_model == 'idf':
             self.parameters['tfidf__norm'] = norm
         elif self.vector_space_model == 'plm':
@@ -111,12 +112,13 @@ class Verification(object):
             self.X_train.shape))
         return self
 
-    def _setup_test_pairs(self):
+    def _setup_test_pairs(self, phase='train'):
         test_pairs = []
-        for i in range(len(self.dev_titles)):
-            for j in range(len(self.dev_titles)):
+        titles = self.train_titles if phase == 'train' else self.dev_titles
+        for i in range(len(titles)):
+            for j in range(i):
                 if i != j:
-                    title_i, title_j = self.dev_titles[i], self.dev_titles[j]
+                    title_i, title_j = titles[i], titles[j]
                     if title_i.split("_")[0] != title_j.split('_')[0]:
                         test_pairs.append((i, j))
         self.rnd.shuffle(test_pairs)
@@ -124,14 +126,18 @@ class Verification(object):
             return test_pairs
         return test_pairs[:self.n_test_pairs]
 
-    def _setup_balanced_test_pairs(self):
+    def _setup_balanced_test_pairs(self, phase='train'):
+        if phase == 'train':
+            titles, authors = self.train_titles, self.train_authors
+        else:
+            titles, authors = self.dev_titles, self.dev_authors
         same_author_pairs, diff_author_pairs = [], []
-        for i in range(len(self.dev_titles)):
-            for j in range(len(self.dev_titles)):
+        for i in range(len(titles)):
+            for j in range(i):
                 if i != j:
-                    title_i, title_j = self.dev_titles[i], self.dev_titles[j]
+                    title_i, title_j = titles[i], titles[j]
                     if title_i.split("_")[0] != title_j.split('_')[0]:
-                        if self.dev_authors[i] == self.dev_authors[j]:
+                        if authors[i] == authors[j]:
                             same_author_pairs.append((i, j))
                         else:
                             diff_author_pairs.append((i, j))
@@ -143,21 +149,28 @@ class Verification(object):
         self.rnd.shuffle(test_pairs) # needed for proportional evaluation
         return test_pairs
 
-
-    def _verification(self):
+    def compute_distances(self, phase='train'):
         distances, labels = [], []
-        test_pairs = self._setup_test_pairs()
+        test_pairs = self._setup_test_pairs(phase)
+        X = self.X_train if phase == 'train' else self.X_dev
+        authors = self.train_authors if phase == 'train' else self.dev_authors
         for k, (i, j) in enumerate(test_pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
-            dist = self.metric(self.X_dev[i], self.X_dev[j])
+            dist = self.metric(X[i], X[j])
             assert not (np.isnan(dist) or np.isinf(dist))
             distances.append(dist)
             labels.append(
-                "same_author" if self.dev_authors[i] == self.dev_authors[j] else
+                "same_author" if authors[i] == authors[j] else
                 "diff_author")
+        return distances, labels
+
+    def _verification(self, train_dists, train_labels, test_dists, test_labels):
+        distances = train_dists + test_dists
         min_dist, max_dist = min(distances), max(distances)
-        for distance, label in zip(distances, labels):
-            yield label, (distance - min_dist) / (max_dist - min_dist)
+        scale = lambda d: (d - min_dist) / (max_dist - min_dist)
+        train_scores = zip(train_labels, map(scale, train_dists))
+        test_scores = zip(test_labels, map(scale, test_dists))
+        return train_scores, test_scores
 
     def _verification_with_sampling(self):
         test_pairs = self._setup_test_pairs()
@@ -205,5 +218,8 @@ class Verification(object):
     def verify(self):
         "Start the verification procedure."
         if self.sample_authors or self.sample_features:
+            raise ValueError("Must be reimplemented...")
             return self._verification_with_sampling()
-        return self._verification()
+        train_dists, train_labels = self.compute_distances(phase="train")
+        test_dists, test_labels = self.compute_distances(phase="test")
+        return self._verification(train_dists, train_labels, test_dists, test_labels)

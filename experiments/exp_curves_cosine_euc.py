@@ -14,7 +14,7 @@ import numpy as np
 import seaborn as sb
 
 
-train, test = "../data/gr_articles", "../data/gr_articles"
+train, test = "../data/du_essays", "../data/du_essays"
 logging.info("preparing corpus")
 if train == test:
     data = prepare_corpus(train)
@@ -27,7 +27,7 @@ else:
     X_test = prepare_corpus(test)
 vector_space_model = "plm"
 verifier = Verification(random_state=1,
-                        metric='euclidean', sample_authors=False,
+                        metric='divergence', sample_authors=False,
                         n_features=10000,
                         n_test_pairs=10000, em_iterations=100,
                         vector_space_model=vector_space_model, weight=0.2,
@@ -42,19 +42,6 @@ dev_f, dev_p, dev_r, dev_t = evaluate(results)
 print np.nanmax(dev_f)
 best_t = dev_t[np.nanargmax(dev_f)]
 
-test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t) # TODO: klopt iets niet
-test_fscores, test_precisions, test_recalls, test_thresholds = evaluate(test_results)
-
-sb.plt.plot(test_recalls, test_precisions)
-print "F: %.3f, P: %.3f, R: %.3f, AP: %.3f" % (
-    test_f, test_p, test_r, average_precision_score(test_results))
-
-N = sum(l == "same_author" for l, _ in results)
-print N
-print rank_predict(test_results, method="proportional", N=N)
-print rank_predict(test_results, method="calibrated")
-print rank_predict(test_results, method="break-even-point")
-sb.plt.legend(loc='best')
-
-#plot_test_densities(results=results, dev_t=best_t)
+test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t) 
+plot_test_densities(results=results, filename='divergence-bell.pdf', dev_t=1-best_t)
 #plot_test_results(test_fscores[:-1], test_thresholds, test_precisions[:-1], test_recalls[:-1], best_t)

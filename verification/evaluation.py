@@ -14,7 +14,9 @@ def evaluate(results, beta=2):
 
 def evaluate_with_threshold(results, t, beta=2):
     y_true = np.array([0 if l == "diff_author" else 1 for l, _ in results])
-    preds = np.array([1 if score <= t else 0 for _, score in results])
+    scores = np.array([score for _, score in results])
+    scores = 1 - scores # highest similarity 
+    preds = scores >= t 
     precision = precision_score(y_true, preds)
     recall = recall_score(y_true, preds)
     f_score = beta * (precision * recall) / (precision + recall)
