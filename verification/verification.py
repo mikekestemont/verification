@@ -130,7 +130,7 @@ class Verification(object):
         if phase == 'train':
             titles, authors = self.train_titles, self.train_authors
         else:
-            titles, authors = self.dev_titles, self.dev_authors
+            titles, authors = self.test_titles, self.test_authors
         same_author_pairs, diff_author_pairs = [], []
         for i in range(len(titles)):
             for j in range(i):
@@ -152,8 +152,8 @@ class Verification(object):
     def compute_distances(self, phase='train'):
         distances, labels = [], []
         test_pairs = self._setup_test_pairs(phase)
-        X = self.X_train if phase == 'train' else self.X_dev
-        authors = self.train_authors if phase == 'train' else self.dev_authors
+        X = self.X_train if phase == 'train' else self.X_test
+        authors = self.train_authors if phase == 'train' else self.test_authors
         for k, (i, j) in enumerate(test_pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
             dist = self.metric(X[i], X[j])
