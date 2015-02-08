@@ -98,23 +98,23 @@ class Verification(object):
             self.parameters['plm__iterations'] = em_iterations
             self.parameters['plm__norm'] = norm
 
-    def fit(self, background_dataset, dev_dataset):
-        self.train_data, self.train_titles, self.train_authors = background_dataset
-        self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
+    def fit(self, train_dataset, test_dataset):
+        self.train_data, self.train_titles, self.train_authors = train_dataset
+        self.test_data, self.test_titles, self.test_authors = test_dataset
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
-        transformer.fit(self.train_data + self.dev_data)
+        transformer.fit(self.train_data + self.test_data)
         self.X_train = transformer.transform(self.train_data)
-        logging.info("Background corpus: n_samples=%s / n_features=%s" % (
+        logging.info("Training corpus: n_samples=%s / n_features=%s" % (
             self.X_train.shape))
-        self.X_dev = transformer.transform(self.dev_data)
-        logging.info("Development corpus: n_samples=%s / n_features=%s" % (
+        self.X_test = transformer.transform(self.test_data)
+        logging.info("Test corpus: n_samples=%s / n_features=%s" % (
             self.X_train.shape))
         return self
 
     def _setup_test_pairs(self, phase='train'):
         test_pairs = []
-        titles = self.train_titles if phase == 'train' else self.dev_titles
+        titles = self.train_titles if phase == 'train' else self.test_titles
         for i in range(len(titles)):
             for j in range(i):
                 if i != j:
