@@ -76,7 +76,10 @@ class Verification(object):
         self.text_cutoff = text_cutoff
         self.sample_iterations = sample_iterations
         self.n_potential_imposters = n_potential_imposters
-        self.n_actual_imposters = n_actual_imposters
+        if n_actual_imposters and n_actual_imposters < n_potential_imposters:
+            self.n_actual_imposters = n_actual_imposters
+        else:
+            self.n_actual_imposters = n_potential_imposters
         self.n_test_pairs = n_test_pairs
         self.vector_space_model = vector_space_model
         self.weight = weight
@@ -84,7 +87,7 @@ class Verification(object):
         self.norm = norm
         self.rnd = np.random.RandomState(random_state)
         if balanced_test_pairs:
-            self._setup_test_pairs = self._setup_balanced_test_pairs
+            self._setup_pairs = self._setup_balanced_pairs
         self.top_rank = top_rank
         # TODO: als we met plm werken is max_features eigen wat gek
         #       omdat plm max)features gaat opzoeken...
@@ -110,24 +113,24 @@ class Verification(object):
             self.X_train.shape))
         self.X_test = transformer.transform(self.test_data)
         logging.info("Test corpus: n_samples=%s / n_features=%s" % (
-            self.X_train.shape))
+            self.X_test.shape))
         return self
 
-    def _setup_test_pairs(self, phase='train'):
-        test_pairs = []
+    def _setup_pairs(self, phase='train'):
+        pairs = []
         titles = self.train_titles if phase == 'train' else self.test_titles
         for i in range(len(titles)):
             for j in range(i):
                 if i != j:
                     title_i, title_j = titles[i], titles[j]
                     if title_i.split("_")[0] != title_j.split('_')[0]:
-                        test_pairs.append((i, j))
-        self.rnd.shuffle(test_pairs)
+                        pairs.append((i, j))
+        self.rnd.shuffle(pairs)
         if self.n_test_pairs == None:
-            return test_pairs
-        return test_pairs[:self.n_test_pairs]
+            return pairs
+        return pairs[:self.n_test_pairs]
 
-    def _setup_balanced_test_pairs(self, phase='train'):
+    def _setup_balanced_pairs(self, phase='train'):
         if phase == 'train':
             titles, authors = self.train_titles, self.train_authors
         else:
@@ -146,26 +149,85 @@ class Verification(object):
         self.rnd.shuffle(diff_author_pairs)
         same_author_pairs = same_author_pairs[:int(self.n_test_pairs / 2.0)]
         diff_author_pairs = diff_author_pairs[:int(self.n_test_pairs / 2.0)]
-        test_pairs = same_author_pairs + diff_author_pairs
-        self.rnd.shuffle(test_pairs) # needed for proportional evaluation
-        return test_pairs
+        pairs = same_author_pairs + diff_author_pairs
+        self.rnd.shuffle(pairs) # needed for proportional evaluation
+        return pairs
 
-    def compute_distances(self, phase='train'):
+    def compute_distances(self, pairs=[], phase='train'):
         distances, labels = [], []
-        test_pairs = self._setup_test_pairs(phase)
         X = self.X_train if phase == 'train' else self.X_test
         authors = self.train_authors if phase == 'train' else self.test_authors
-        for k, (i, j) in enumerate(test_pairs):
-            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
+        for k, (i, j) in enumerate(pairs):
+            logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             dist = self.metric(X[i], X[j])
             assert not (np.isnan(dist) or np.isinf(dist))
             distances.append(dist)
             labels.append(
                 "same_author" if authors[i] == authors[j] else
                 "diff_author")
-        return distances, labels, test_pairs
+        return distances, labels
 
-    def _verification(self, train_dists, train_labels, test_dists, test_labels):
+    def compute_sigmas(self, pairs=[], phase='train'):
+        if phase == "test":
+            test_X, test_authors, test_titles = self.X_test, self.test_titles, self.test_authors
+            background_X, background_authors, background_titles = self.X_train, self.train_titles, self.train_authors
+        elif phase == "train":
+            test_X, test_authors, test_titles = self.X_train, self.train_titles, self.train_authors
+            background_X, background_authors, background_titles = self.X_train, self.train_titles, self.train_authors
+        sigmas, labels = [], []
+        for k, (i, j) in enumerate(pairs):
+            logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
+            author_i, author_j = self.test_authors[i], self.test_authors[j]
+            background_sims = []
+            # first, select n_potential_imposters
+            for k in range(background_X.shape[0]):
+                if background_authors[k] not in (author_i, author_j):
+                    background_sims.append((k, background_authors[k],
+                                       self.metric(test_X[i], background_X[k])))
+            background_sims.sort(key=lambda sim: sim[-1])
+            indexes, imposters, _ = zip(*background_sims[:self.n_potential_imposters])
+            X_imposters = background_X[list(indexes), :]
+            # now, start the iteration:
+            targets = 0.0
+            for iteration in range(self.sample_iterations):
+                # randomly select imposters:
+                rnd_imposters = self.rnd.randint(
+                    X_imposters.shape[0], size=self.n_actual_imposters)
+                X_truncated = X_imposters[rnd_imposters, :]
+                # randomly select features:
+                rnd_features = self.rnd.randint(
+                    X_truncated.shape[1], size=self.random_prop)
+                vec_i, vec_j = test_X[i], test_X[j]
+                # compute distance to target doc:
+                all_candidates = [self.metric(vec_i, vec_j, rnd_features)]
+                # compute distance to imposters:
+                all_candidates += [self.metric(vec_i, X_truncated[k], rnd_features)
+                                   for k in range(self.n_actual_imposters)]
+                all_candidates = np.array(all_candidates)
+                # find rank of target doc in ranking:
+                rank_target = np.where(all_candidates.argsort() == 0)[0][0] + 1
+                if self.top_rank == 1:
+                    # standard rank checking:
+                    targets += 1.0 if rank_target == 1 else 0.0
+                else:
+                    # or a variation on mean reciprocal rank:
+                    if rank_target <= self.top_rank:
+                        targets += 1.0 / rank_target
+            # append the correct label:
+            if author_i == author_j:
+                labels.append("same_author")
+            else:
+                labels.append("diff_author")
+            # append the sigma as a distance measure (1 - sigma)
+            sigma = 1 - targets / self.sample_iterations
+            sigmas.append(sigma)
+        return sigmas, labels
+
+    def _verification_without_sampling(self, train_pairs, test_pairs):
+        # compute distances plain distances between pairs without sampling:
+        train_dists, train_labels = self.compute_distances(train_pairs, phase="train")
+        test_dists, test_labels = self.compute_distances(test_pairs, phase="test")
+        # scale the train and test distances together:
         distances = train_dists + test_dists
         min_dist, max_dist = min(distances), max(distances)
         scale = lambda d: (d - min_dist) / (max_dist - min_dist)
@@ -173,53 +235,17 @@ class Verification(object):
         test_scores = zip(test_labels, map(scale, test_dists))
         return train_scores, test_scores
 
-    def _verification_with_sampling(self):
-        test_pairs = self._setup_test_pairs()
-        for k, (i, j) in enumerate(test_pairs):
-            logging.info("Verifying pair %s / %s" % (k+1, len(test_pairs)))
-            author_i, author_j = self.dev_authors[i], self.dev_authors[j]
-            train_sims = []
-            for k in range(self.X_train.shape[0]):
-                if self.train_authors[k] not in (author_i, author_j):
-                    train_sims.append((k, self.train_authors[k],
-                                       self.metric(self.X_dev[i], self.X_train[k])))
-            train_sims.sort(key=lambda sim: sim[-1])
-            indexes, imposters, _ = zip(*train_sims[:self.n_potential_imposters])
-            X_imposters = self.X_train[list(indexes), :]
-            targets = 0.0
-            #sigmas = np.zeros(self.sample_iterations)
-            for iteration in range(self.sample_iterations):
-                rnd_imposters = self.rnd.randint(
-                    X_imposters.shape[0], size=self.n_actual_imposters)
-                X_truncated = X_imposters[rnd_imposters, :]
-                rnd_features = self.rnd.randint(
-                    X_truncated.shape[1], size=self.random_prop)
-                vec_i, vec_j = self.X_dev[i], self.X_dev[j]
-                # most_similar = min(self.metric(vec_i, X_truncated[k], rnd_features)
-                #                    for k in range(self.n_actual_imposters))
-                # target_dist = self.metric(vec_i, vec_j, rnd_features)
-                # if target_dist <= most_similar:
-                #     targets += 1
-                all_candidates = [self.metric(vec_i, vec_j, rnd_features)]
-                all_candidates += [self.metric(vec_i, X_truncated[k], rnd_features)
-                                   for k in range(self.n_actual_imposters)]
-                all_candidates = np.array(all_candidates)
-                # find rank of target in ranking
-                rank_target = np.where(all_candidates.argsort() == 0)[0][0] + 1
-                if self.top_rank == 1:
-                    targets += 1.0 if rank_target == 1 else 0.0
-                else:
-                    if rank_target <= self.top_rank:
-                        targets += 1.0 / rank_target
-                #sigmas[iteration] = targets / (iteration + 1.0)
-            yield ("same_author" if author_i == author_j else "diff_author",
-                   #1 - sigmas.mean())
-                   1 - targets / self.sample_iterations)
+    def _verification_with_sampling(self, train_pairs, test_pairs):
+        train_sigmas, train_labels = self.compute_sigmas(train_pairs, phase="train")
+        test_sigmas, test_labels = self.compute_sigmas(test_pairs, phase="test")
+        train_scores = zip(train_labels, map(scale, train_sigmas))
+        test_scores = zip(test_labels, map(scale, test_sigmas))
+        return train_scores, test_scores
 
     def get_distance_table(self, dists, pairs, phase):
         if phase == 'train':
             titles, authors = self.train_titles, self.train_authors
-        else:
+        elif phase == 'test':
             titles, authors = self.test_titles, self.test_authors
         textlabels = [a+"_"+t for a, t in zip(authors, titles)]
         df = pd.DataFrame(columns=(["id"]+textlabels))
@@ -237,17 +263,15 @@ class Verification(object):
 
     def verify(self):
         "Start the verification procedure."
+        # set the train pairs:
+        train_pairs = self._setup_pairs(phase="train")
+        test_pairs = self._setup_pairs(phase="test")
         if self.sample_authors or self.sample_features:
-            raise ValueError("Must be reimplemented...")
-            return self._verification_with_sampling()
+            train_scores, test_scores = self._verification_with_sampling(train_pairs, test_pairs)
         else:
-            # get original distances:
-            train_dists, train_labels, train_pairs = self.compute_distances(phase="train")
-            test_dists, test_labels, test_pairs = self.compute_distances(phase="test")
-            # normalize:
-            train_scores, test_scores = self._verification(train_dists, train_labels, test_dists, test_labels)
-            train_dists, test_dists = [score for label, score in train_scores], [score for label, score in train_scores]
-            # dump the distance tables (in so far as they are filled):s
-            train_df = self.get_distance_table(train_dists, train_pairs, "train")
-            test_df = self.get_distance_table(test_dists, test_pairs, "test")
-            return train_scores, test_scores
+            train_scores, test_scores = self._verification_without_sampling(train_pairs, test_pairs)
+        train_dists, test_dists = [score for label, score in train_scores], [score for label, score in train_scores]
+        # dump the distance tables (in so far as they are filled):
+        self.get_distance_table(train_dists, train_pairs, "train")
+        self.get_distance_table(test_dists, test_pairs, "test")
+        return (train_scores, test_scores)
