@@ -5,6 +5,7 @@ from operator import itemgetter
 
 import numpy as np
 import scipy.sparse as sp
+import pandas as pd
 
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
@@ -162,7 +163,7 @@ class Verification(object):
             labels.append(
                 "same_author" if authors[i] == authors[j] else
                 "diff_author")
-        return distances, labels
+        return distances, labels, test_pairs
 
     def _verification(self, train_dists, train_labels, test_dists, test_labels):
         distances = train_dists + test_dists
@@ -215,11 +216,38 @@ class Verification(object):
                    #1 - sigmas.mean())
                    1 - targets / self.sample_iterations)
 
+    def get_distance_table(self, dists, pairs, phase):
+        if phase == 'train':
+            titles, authors = self.train_titles, self.train_authors
+        else:
+            titles, authors = self.test_titles, self.test_authors
+        textlabels = [a+"_"+t for a, t in zip(authors, titles)]
+        df = pd.DataFrame(columns=(["id"]+textlabels))
+        # prepopulate with zeros:
+        for i, tl in enumerate(textlabels):
+            r = [tl]+list(np.zeros(len(textlabels)))
+            df.loc[i] = [tl]+list(np.zeros(len(textlabels)))
+        # populate with the scores that we have:
+        for d, index in zip(dists, pairs):
+            df[index] = d
+        # save:
+        with open("../plots/"+phase+"_dists.txt", "w+") as F:
+            F.write(df.to_string())
+        return df
+
     def verify(self):
         "Start the verification procedure."
         if self.sample_authors or self.sample_features:
             raise ValueError("Must be reimplemented...")
             return self._verification_with_sampling()
-        train_dists, train_labels = self.compute_distances(phase="train")
-        test_dists, test_labels = self.compute_distances(phase="test")
-        return self._verification(train_dists, train_labels, test_dists, test_labels)
+        else:
+            # get original distances:
+            train_dists, train_labels, train_pairs = self.compute_distances(phase="train")
+            test_dists, test_labels, test_pairs = self.compute_distances(phase="test")
+            # normalize:
+            train_scores, test_scores = self._verification(train_dists, train_labels, test_dists, test_labels)
+            train_dists, test_dists = [score for label, score in train_scores], [score for label, score in train_scores]
+            # dump the distance tables (in so far as they are filled):s
+            train_df = self.get_distance_table(train_dists, train_pairs, "train")
+            test_df = self.get_distance_table(test_dists, test_pairs, "test")
+            return train_scores, test_scores
