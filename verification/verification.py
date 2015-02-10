@@ -63,7 +63,7 @@ class Verification(object):
     def __init__(self, n_features=1000, random_prop=0.5, sample_features=False,
                  sample_authors=False, metric='cosine', text_cutoff=None,
                  sample_iterations=10, n_potential_imposters=30,
-                 n_actual_imposters=10, n_test_pairs=None, random_state=None,
+                 n_actual_imposters=10, n_train_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
                  ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
                  balanced_test_pairs=False):
@@ -80,6 +80,7 @@ class Verification(object):
             self.n_actual_imposters = n_actual_imposters
         else:
             self.n_actual_imposters = n_potential_imposters
+        self.n_train_pairs = n_train_pairs
         self.n_test_pairs = n_test_pairs
         self.vector_space_model = vector_space_model
         self.weight = weight
@@ -118,7 +119,12 @@ class Verification(object):
 
     def _setup_pairs(self, phase='train'):
         pairs = []
-        titles = self.train_titles if phase == 'train' else self.test_titles
+        if phase == "train":
+            titles = self.train_titles
+            n_pairs = self.n_train_pairs
+        elif phase == "test":
+            titles = self.test_titles
+            n_pairs = self.n_test_pairs
         for i in range(len(titles)):
             for j in range(i):
                 if i != j:
@@ -126,9 +132,9 @@ class Verification(object):
                     if title_i.split("_")[0] != title_j.split('_')[0]:
                         pairs.append((i, j))
         self.rnd.shuffle(pairs)
-        if self.n_test_pairs == None:
+        if n_pairs == None:
             return pairs
-        return pairs[:self.n_test_pairs]
+        return pairs[:n_pairs]
 
     def _setup_balanced_pairs(self, phase='train'):
         if phase == 'train':
@@ -176,27 +182,34 @@ class Verification(object):
             background_X, background_authors, background_titles = self.X_train, self.train_titles, self.train_authors
         sigmas, labels = [], []
         for k, (i, j) in enumerate(pairs):
+            print (i, j)
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
-            author_i, author_j = self.test_authors[i], self.test_authors[j]
+            author_i, author_j = test_authors[i], test_authors[j]
             background_sims = []
             # first, select n_potential_imposters
             for k in range(background_X.shape[0]):
                 if background_authors[k] not in (author_i, author_j):
                     background_sims.append((k, background_authors[k],
                                        self.metric(test_X[i], background_X[k])))
-            background_sims.sort(key=lambda sim: sim[-1])
+            background_sims.sort(key=lambda sim: sim[-1])            
             indexes, imposters, _ = zip(*background_sims[:self.n_potential_imposters])
             X_imposters = background_X[list(indexes), :]
-            # now, start the iteration:
+            # start the iteration for th pair:
             targets = 0.0
             for iteration in range(self.sample_iterations):
                 # randomly select imposters:
-                rnd_imposters = self.rnd.randint(
-                    X_imposters.shape[0], size=self.n_actual_imposters)
-                X_truncated = X_imposters[rnd_imposters, :]
+                if self.sample_authors:
+                    rnd_imposters = self.rnd.randint(
+                        X_imposters.shape[0], size=self.n_actual_imposters)
+                    X_truncated = X_imposters[rnd_imposters, :]
+                else:
+                    X_truncated = X_imposters
                 # randomly select features:
-                rnd_features = self.rnd.randint(
-                    X_truncated.shape[1], size=self.random_prop)
+                if self.sample_features:
+                    rnd_features = self.rnd.randint(
+                        X_truncated.shape[1], size=self.random_prop)
+                else:
+                    rnd_features = range(X_truncated.shape[1])
                 vec_i, vec_j = test_X[i], test_X[j]
                 # compute distance to target doc:
                 all_candidates = [self.metric(vec_i, vec_j, rnd_features)]
@@ -238,8 +251,8 @@ class Verification(object):
     def _verification_with_sampling(self, train_pairs, test_pairs):
         train_sigmas, train_labels = self.compute_sigmas(train_pairs, phase="train")
         test_sigmas, test_labels = self.compute_sigmas(test_pairs, phase="test")
-        train_scores = zip(train_labels, map(scale, train_sigmas))
-        test_scores = zip(test_labels, map(scale, test_sigmas))
+        train_scores = zip(train_labels, train_sigmas)
+        test_scores = zip(test_labels, test_sigmas)
         return train_scores, test_scores
 
     def get_distance_table(self, dists, pairs, phase):
