@@ -139,8 +139,10 @@ class Verification(object):
     def _setup_balanced_pairs(self, phase='train'):
         if phase == 'train':
             titles, authors = self.train_titles, self.train_authors
-        else:
+            n_pairs = self.n_train_pairs
+        elif phase == 'test':
             titles, authors = self.test_titles, self.test_authors
+            n_pairs = self.n_test_pairs
         same_author_pairs, diff_author_pairs = [], []
         for i in range(len(titles)):
             for j in range(i):
@@ -153,8 +155,8 @@ class Verification(object):
                             diff_author_pairs.append((i, j))
         self.rnd.shuffle(same_author_pairs)
         self.rnd.shuffle(diff_author_pairs)
-        same_author_pairs = same_author_pairs[:int(self.n_test_pairs / 2.0)]
-        diff_author_pairs = diff_author_pairs[:int(self.n_test_pairs / 2.0)]
+        same_author_pairs = same_author_pairs[:int(n_pairs / 2.0)]
+        diff_author_pairs = diff_author_pairs[:int(n_pairs / 2.0)]
         pairs = same_author_pairs + diff_author_pairs
         self.rnd.shuffle(pairs) # needed for proportional evaluation
         return pairs
@@ -175,14 +177,13 @@ class Verification(object):
 
     def compute_sigmas(self, pairs=[], phase='train'):
         if phase == "test":
-            test_X, test_authors, test_titles = self.X_test, self.test_titles, self.test_authors
-            background_X, background_authors, background_titles = self.X_train, self.train_titles, self.train_authors
+            test_X, test_authors, test_titles = self.X_test, self.test_authors, self.test_titles
+            background_X, background_authors, background_titles = self.X_train, self.train_authors, self.train_titles
         elif phase == "train":
-            test_X, test_authors, test_titles = self.X_train, self.train_titles, self.train_authors
-            background_X, background_authors, background_titles = self.X_train, self.train_titles, self.train_authors
+            test_X, test_authors, test_titles = self.X_train, self.train_authors, self.train_titles
+            background_X, background_authors, background_titles = self.X_train, self.train_authors, self.train_titles
         sigmas, labels = [], []
         for k, (i, j) in enumerate(pairs):
-            print (i, j)
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             author_i, author_j = test_authors[i], test_authors[j]
             background_sims = []
