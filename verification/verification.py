@@ -66,7 +66,7 @@ class Verification(object):
                  n_actual_imposters=10, n_train_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
                  ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
-                 balanced_test_pairs=False):
+                 balanced_pairs=False):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -87,7 +87,7 @@ class Verification(object):
         self.em_iterations = em_iterations
         self.norm = norm
         self.rnd = np.random.RandomState(random_state)
-        if balanced_test_pairs:
+        if balanced_pairs:
             self._setup_pairs = self._setup_balanced_pairs
         self.top_rank = top_rank
         # TODO: als we met plm werken is max_features eigen wat gek
@@ -120,17 +120,24 @@ class Verification(object):
     def _setup_pairs(self, phase='train'):
         pairs = []
         if phase == "train":
-            titles = self.train_titles
+            titles, authors = self.train_titles, self.train_authors
             n_pairs = self.n_train_pairs
         elif phase == "test":
-            titles = self.test_titles
+            titles, authors = self.test_titles, self.test_authors
             n_pairs = self.n_test_pairs
+        pairs = []
         for i in range(len(titles)):
-            for j in range(i):
+            for j in range(len(titles)):
                 if i != j:
                     title_i, title_j = titles[i], titles[j]
-                    if title_i.split("_")[0] != title_j.split('_')[0]:
-                        pairs.append((i, j))
+                    if "_" in title_i and "_" in title_j:
+                        if title_i.split("_")[0] != title_j.split('_')[0]:
+                            pass
+                    else:
+                        if authors[i] == authors[j]:
+                            pairs.append((i, j))
+                        else:
+                            pairs.append((i, j))
         self.rnd.shuffle(pairs)
         if n_pairs == None:
             return pairs
@@ -145,10 +152,13 @@ class Verification(object):
             n_pairs = self.n_test_pairs
         same_author_pairs, diff_author_pairs = [], []
         for i in range(len(titles)):
-            for j in range(i):
+            for j in range(len(titles)):
                 if i != j:
                     title_i, title_j = titles[i], titles[j]
-                    if title_i.split("_")[0] != title_j.split('_')[0]:
+                    if "_" in title_i and "_" in title_j:
+                        if title_i.split("_")[0] != title_j.split('_')[0]:
+                            pass
+                    else:
                         if authors[i] == authors[j]:
                             same_author_pairs.append((i, j))
                         else:
@@ -265,14 +275,12 @@ class Verification(object):
         df = pd.DataFrame(columns=(["id"]+textlabels))
         # prepopulate with zeros:
         for i, tl in enumerate(textlabels):
-            r = [tl]+list(np.zeros(len(textlabels)))
             df.loc[i] = [tl]+list(np.zeros(len(textlabels)))
-        # populate with the scores that we have:
-        for d, index in zip(dists, pairs):
-            df[index] = d
+        # populate with the scores (that we have, cf. limited nr of pairs):
+        for d, (i, j) in zip(dists, pairs):
+            df.ix[i,j+1] = d
         # save:
-        with open("../plots/"+phase+"_dists.txt", "w+") as F:
-            F.write(df.to_string())
+        df.to_csv("../plots/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
         return df
 
     def verify(self):
@@ -284,7 +292,7 @@ class Verification(object):
             train_scores, test_scores = self._verification_with_sampling(train_pairs, test_pairs)
         else:
             train_scores, test_scores = self._verification_without_sampling(train_pairs, test_pairs)
-        train_dists, test_dists = [score for label, score in train_scores], [score for label, score in train_scores]
+        train_dists, test_dists = [score for label, score in train_scores], [score for label, score in test_scores]
         # dump the distance tables (in so far as they are filled):
         self.get_distance_table(train_dists, train_pairs, "train")
         self.get_distance_table(test_dists, test_pairs, "test")

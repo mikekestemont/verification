@@ -7,7 +7,7 @@ using the entire vocabulary.
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                    level=logging.WARN)
+                    level=logging.INFO)
 
 from verification.verification import Verification
 from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
@@ -16,6 +16,7 @@ from verification.plotting import plot_test_results
 from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
 import numpy as np
+
 from scipy.stats import ks_2samp
 
 import matplotlib
@@ -57,13 +58,20 @@ c1, c2 = sb.color_palette("Set1")[:2]
 
 for dm_cnt, distance_metric in enumerate(dms):
     for vsm_cnt, vector_space_model in enumerate(vsms):
-        verifier = Verification(random_state=1,
-                                metric=distance_metric, sample_authors=False,
-                                n_features=V, n_train_pairs=10000,
-                                n_test_pairs=10000, em_iterations=100,
-                                vector_space_model=vector_space_model, weight=0.2,
-                                n_actual_imposters=10, eps=0.01,
-                                norm="l2", top_rank=3, balanced_test_pairs=False)
+        verifier = Verification(n_features=V,
+                                random_prop=0.5,
+                                sample_features=True,
+                                sample_authors=False,
+                                metric=distance_metric,
+                                text_cutoff=None,
+                                sample_iterations=100,
+                                n_potential_imposters=30,
+                                n_actual_imposters=30,
+                                n_train_pairs=10000,
+                                n_test_pairs=10000,
+                                random_state=1,
+                                vector_space_model=vector_space_model,
+                                balanced_test_pairs=False)
         logging.info("Starting verification [train / test]")
         verifier.fit(X_train, X_test)
         results, test_results = verifier.verify()

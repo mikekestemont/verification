@@ -20,12 +20,20 @@ from verification.evaluation import evaluate, evaluate_with_threshold
 from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
 import numpy as np
+
+import matplotlib
+matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
+import matplotlib.pyplot as plt
+
+import matplotlib.gridspec as gridspec
 import seaborn as sb
+
 import pandas as pd
 
+
 data_path = "../data/"
-corpora = ("du_essays", "gr_articles")
-n_experiments = 15
+corpora = ["du_essays"]#, "gr_articles", "caesar_background", "du_reviews", "en_essays", "sp_articles", "en_novels"]
+n_experiments = 20
 
 corpora_results = {}
 
@@ -58,7 +66,6 @@ for corpus in corpora:
     # we iterate over the distance metrics:
     for i, distance_metric in enumerate(['minmax', 'divergence', 'euclidean', 'cosine', 'cityblock']):
         # we iterate over the vector space models:
-        print df
         vsm_row = [distance_metric]
         for vsm in vsms:
             f_scores = []
@@ -66,7 +73,8 @@ for corpus in corpora:
                 verifier = Verification(random_state=1,
                                         metric=distance_metric, sample_authors=False,
                                         n_features=int(n_features),
-                                        n_test_pairs=5000, em_iterations=100,
+                                        sample_features=True,
+                                        n_test_pairs=10000, em_iterations=100,
                                         vector_space_model=vsm, weight=0.2,
                                         n_actual_imposters=10, eps=0.01,
                                         norm="l2", top_rank=3, balanced_test_pairs=False)
@@ -76,7 +84,7 @@ for corpus in corpora:
 
                 logging.info("Computing results")
                 dev_f, dev_p, dev_r, dev_t = evaluate(results)
-                print np.nanmax(dev_f)
+                #print np.nanmax(dev_f)
                 best_t = dev_t[np.nanargmax(dev_f)]
 
                 test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t) 
