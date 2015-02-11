@@ -1,13 +1,19 @@
 """
-We plot the different distributions in scores for same-author and different-author pairs
-in the dev set, and calculate whether they are statistically significantly different,
-using the entire vocabulary.
+Note: random feature selection is related to idea of random forests
+or neural network research into stochastic denoising autencoders or dropout.
 """
 
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.INFO)
+
+import matplotlib
+matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
+import matplotlib.pyplot as plt
+
+import matplotlib.gridspec as gridspec
+import seaborn as sb
 
 from verification.verification import Verification
 from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
@@ -18,13 +24,6 @@ from sklearn.cross_validation import train_test_split
 import numpy as np
 
 from scipy.stats import ks_2samp
-
-import matplotlib
-matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
-import matplotlib.pyplot as plt
-
-import matplotlib.gridspec as gridspec
-import seaborn as sb
 
 # select a data set
 train = "../data/du_essays"
@@ -39,7 +38,6 @@ if train == test:
         data.texts, data.titles, data.authors, test_size=0.5, random_state=1956)
     X_train = Dataset(train_texts, train_titles, train_authors)
     X_test = Dataset(test_texts, test_titles, test_authors)
-    print len(X_train.texts)
 else:
     X_train = prepare_corpus(train)
     X_test = prepare_corpus(test)
@@ -47,8 +45,11 @@ else:
 # we determine the size of the entire vocabulary
 V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
 
-vsms = ('std', 'plm', 'tf', 'idf')
-dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
+#vsms = ('std', 'plm', 'tf', 'idf')
+#dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
+
+vsms = ['plm']
+dms  = ['minmax']
 
 # set fig params
 fig = sb.plt.figure(figsize=(len(dms), len(vsms)))
@@ -60,24 +61,24 @@ for dm_cnt, distance_metric in enumerate(dms):
     for vsm_cnt, vector_space_model in enumerate(vsms):
         verifier = Verification(n_features=V,
                                 random_prop=0.5,
-                                sample_features=True,
+                                sample_features=False,
                                 sample_authors=False,
                                 metric=distance_metric,
                                 text_cutoff=None,
                                 sample_iterations=100,
-                                n_potential_imposters=30,
-                                n_actual_imposters=30,
-                                n_train_pairs=10000,
-                                n_test_pairs=10000,
+                                n_potential_imposters=100,
+                                n_actual_imposters=25,
+                                n_train_pairs=1000,
+                                n_test_pairs=1000,
                                 random_state=1,
                                 vector_space_model=vector_space_model,
-                                balanced_test_pairs=False)
+                                balanced_pairs=True)
         logging.info("Starting verification [train / test]")
         verifier.fit(X_train, X_test)
-        results, test_results = verifier.verify()
+        train_results, test_results = verifier.verify()
 
         logging.info("Computing results")
-        dev_f, dev_p, dev_r, dev_t = evaluate(results)
+        dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
         
         best_t = dev_t[np.nanargmax(dev_f)]
         test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
@@ -86,8 +87,8 @@ for dm_cnt, distance_metric in enumerate(dms):
         print "\t\t- Precision: "+str(test_p)
         print "\t\t- Recall: "+str(test_r)
 
-        same_author_densities = np.asarray([sc for c, sc in results if c == "same_author"])
-        diff_author_densities = np.asarray([sc for c, sc in results if c == "diff_author"])
+        same_author_densities = np.asarray([sc for c, sc in train_results if c == "same_author"])
+        diff_author_densities = np.asarray([sc for c, sc in train_results if c == "diff_author"])
         D, p = ks_2samp(same_author_densities, diff_author_densities)
         print "\t\t- KS: D = "+str(D)+" (p = "+str(p)+")"
         sb.set_style("dark")

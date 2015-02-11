@@ -90,8 +90,7 @@ class Verification(object):
         if balanced_pairs:
             self._setup_pairs = self._setup_balanced_pairs
         self.top_rank = top_rank
-        # TODO: als we met plm werken is max_features eigen wat gek
-        #       omdat plm max)features gaat opzoeken...
+
         self.parameters = {'tf__max_features': n_features,
                            'tf__ngram_range': ngram_range,
                            'tf__min_df': 2}
@@ -131,13 +130,12 @@ class Verification(object):
                 if i != j:
                     title_i, title_j = titles[i], titles[j]
                     if "_" in title_i and "_" in title_j:
-                        if title_i.split("_")[0] != title_j.split('_')[0]:
-                            pass
+                        if title_i.split("_")[0] == title_j.split('_')[0]:
+                            continue
+                    if authors[i] == authors[j]:
+                        pairs.append((i, j))
                     else:
-                        if authors[i] == authors[j]:
-                            pairs.append((i, j))
-                        else:
-                            pairs.append((i, j))
+                        pairs.append((i, j))
         self.rnd.shuffle(pairs)
         if n_pairs == None:
             return pairs
@@ -156,17 +154,16 @@ class Verification(object):
                 if i != j:
                     title_i, title_j = titles[i], titles[j]
                     if "_" in title_i and "_" in title_j:
-                        if title_i.split("_")[0] != title_j.split('_')[0]:
-                            pass
+                        if title_i.split("_")[0] == title_j.split('_')[0]:
+                            continue
+                    if authors[i] == authors[j]:
+                        same_author_pairs.append((i, j))
                     else:
-                        if authors[i] == authors[j]:
-                            same_author_pairs.append((i, j))
-                        else:
-                            diff_author_pairs.append((i, j))
+                        diff_author_pairs.append((i, j))
         self.rnd.shuffle(same_author_pairs)
         self.rnd.shuffle(diff_author_pairs)
         same_author_pairs = same_author_pairs[:int(n_pairs / 2.0)]
-        diff_author_pairs = diff_author_pairs[:int(n_pairs / 2.0)]
+        diff_author_pairs = diff_author_pairs[:len(same_author_pairs)]
         pairs = same_author_pairs + diff_author_pairs
         self.rnd.shuffle(pairs) # needed for proportional evaluation
         return pairs
@@ -199,13 +196,22 @@ class Verification(object):
             background_sims = []
             # first, select n_potential_imposters
             for k in range(background_X.shape[0]):
-                if background_authors[k] not in (author_i, author_j):
-                    background_sims.append((k, background_authors[k],
+                if "_" in background_titles[k]:
+                    xt = background_titles[k].split('_')[0]
+                    if "_" in test_titles[i]:
+                        t1 = test_titles[i].split("_")[0]
+                        if t1 == xt:
+                            continue
+                    if "_" in test_titles[j]:
+                        t2 = test_titles[j].split("_")[0]
+                        if t2 == xt:
+                            continue
+                background_sims.append((k, background_authors[k],
                                        self.metric(test_X[i], background_X[k])))
             background_sims.sort(key=lambda sim: sim[-1])            
             indexes, imposters, _ = zip(*background_sims[:self.n_potential_imposters])
             X_imposters = background_X[list(indexes), :]
-            # start the iteration for th pair:
+            # start the iteration for the pairs:
             targets = 0.0
             for iteration in range(self.sample_iterations):
                 # randomly select imposters:
@@ -240,10 +246,13 @@ class Verification(object):
             # append the correct label:
             if author_i == author_j:
                 labels.append("same_author")
+                print("same_author")
             else:
                 labels.append("diff_author")
+                print("diff_author")
             # append the sigma as a distance measure (1 - sigma)
             sigma = 1 - targets / self.sample_iterations
+            print str(sigma)+"!!!"
             sigmas.append(sigma)
         return sigmas, labels
 
@@ -285,7 +294,7 @@ class Verification(object):
 
     def verify(self):
         "Start the verification procedure."
-        # set the train pairs:
+        # set the pairs:
         train_pairs = self._setup_pairs(phase="train")
         test_pairs = self._setup_pairs(phase="test")
         if self.sample_authors or self.sample_features:
