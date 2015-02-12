@@ -15,12 +15,6 @@ import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.WARN)
 
-from verification.verification import Verification
-from verification.evaluation import evaluate, evaluate_with_threshold
-from verification.preprocessing import prepare_corpus, Dataset
-from sklearn.cross_validation import train_test_split
-import numpy as np
-
 import matplotlib
 matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
 import matplotlib.pyplot as plt
@@ -30,14 +24,18 @@ import seaborn as sb
 
 import pandas as pd
 
+from verification.verification import Verification
+from verification.evaluation import evaluate, evaluate_with_threshold
+from verification.preprocessing import prepare_corpus, Dataset
+from sklearn.cross_validation import train_test_split
+import numpy as np
+
 
 data_path = "../data/"
-corpora = ["du_essays"]#, "gr_articles", "caesar_background", "du_reviews", "en_essays", "sp_articles", "en_novels"]
+corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
 n_experiments = 20
 
 corpora_results = {}
-
-
 
 for corpus in corpora:
     # we select a data set and a distance metric:
@@ -64,20 +62,25 @@ for corpus in corpora:
 
     df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
     # we iterate over the distance metrics:
-    for i, distance_metric in enumerate(['minmax', 'divergence', 'euclidean', 'cosine', 'cityblock']):
+    for i, distance_metric in enumerate(['minmax', 'divergence', 'euclidean', 'cityblock']):
         # we iterate over the vector space models:
         vsm_row = [distance_metric]
         for vsm in vsms:
             f_scores = []
             for n_features in feature_ranges:
                 verifier = Verification(random_state=1,
-                                        metric=distance_metric, sample_authors=False,
+                                        metric=distance_metric,
+                                        sample_authors=False,
+                                        sample_features=False,
                                         n_features=int(n_features),
-                                        sample_features=True,
-                                        n_test_pairs=10000, em_iterations=100,
-                                        vector_space_model=vsm, weight=0.2,
-                                        n_actual_imposters=10, eps=0.01,
-                                        norm="l2", top_rank=3, balanced_test_pairs=False)
+                                        n_test_pairs=10000,
+                                        n_train_pairs=10000,
+                                        em_iterations=100,
+                                        vector_space_model=vsm,
+                                        weight=0.2,
+                                        eps=0.01,
+                                        norm="l2",
+                                        balanced_pairs=True)
                 logging.info("Starting verification [train / test]")
                 verifier.fit(X_train, X_test)
                 results, test_results = verifier.verify()

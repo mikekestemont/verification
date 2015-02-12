@@ -114,10 +114,6 @@ class Verification(object):
         self.X_test = transformer.transform(self.test_data)
         logging.info("Test corpus: n_samples=%s / n_features=%s" % (
             self.X_test.shape))
-        for vector in self.X_test.toarray():
-            print np.linalg.norm(vector)
-            u = vector/np.linalg.norm(vector)
-            #print u
         return self
 
 

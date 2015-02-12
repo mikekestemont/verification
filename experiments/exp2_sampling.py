@@ -45,10 +45,10 @@ else:
 # we determine the size of the entire vocabulary
 V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
 
-#vsms = ('std', 'plm', 'tf', 'idf')
+vsms = ('std', 'plm', 'tf', 'idf')
 #dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
 
-vsms = ['plm']
+#vsms = ['plm']
 dms  = ['minmax']
 
 # set fig params
@@ -59,6 +59,7 @@ c1, c2 = sb.color_palette("Set1")[:2]
 
 for dm_cnt, distance_metric in enumerate(dms):
     for vsm_cnt, vector_space_model in enumerate(vsms):
+        print vector_space_model
         verifier = Verification(n_features=V,
                                 random_prop=0.5,
                                 sample_features=False,

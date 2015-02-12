@@ -9,13 +9,6 @@ import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.WARN)
 
-from verification.verification import Verification
-from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
-from verification.evaluation import rank_predict
-from verification.plotting import plot_test_results
-from verification.preprocessing import prepare_corpus, Dataset
-from sklearn.cross_validation import train_test_split
-import numpy as np
 from scipy.stats import ks_2samp
 
 import matplotlib
@@ -24,6 +17,14 @@ import matplotlib.pyplot as plt
 
 import matplotlib.gridspec as gridspec
 import seaborn as sb
+
+from verification.verification import Verification
+from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
+from verification.evaluation import rank_predict
+from verification.plotting import plot_test_results
+from verification.preprocessing import prepare_corpus, Dataset
+from sklearn.cross_validation import train_test_split
+import numpy as np
 
 # select a data set
 train = "../data/du_essays"
@@ -47,7 +48,7 @@ else:
 V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
 
 vsms = ('std', 'plm', 'tf', 'idf')
-dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
+dms  = ('euclidean', 'cityblock', 'divergence', 'minmax')
 
 # set fig params
 fig = sb.plt.figure(figsize=(len(dms), len(vsms)))
@@ -57,19 +58,19 @@ c1, c2 = sb.color_palette("Set1")[:2]
 
 for dm_cnt, distance_metric in enumerate(dms):
     for vsm_cnt, vector_space_model in enumerate(vsms):
-        verifier = Verification(random_state=1,
+        verifier = Verification(random_state=1, sample_features=False,
                                 metric=distance_metric, sample_authors=False,
-                                n_features=V, n_train_pairs=10000,
-                                n_test_pairs=10000, em_iterations=100,
+                                n_features=V, n_train_pairs=1000,
+                                n_test_pairs=1000, em_iterations=100,
                                 vector_space_model=vector_space_model, weight=0.2,
                                 n_actual_imposters=10, eps=0.01,
-                                norm="l2", top_rank=3, balanced_test_pairs=False)
+                                norm="l2", top_rank=3, balanced_pairs=True)
         logging.info("Starting verification [train / test]")
         verifier.fit(X_train, X_test)
-        results, test_results = verifier.verify()
+        train_results, test_results = verifier.verify()
 
         logging.info("Computing results")
-        dev_f, dev_p, dev_r, dev_t = evaluate(results)
+        dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
         
         best_t = dev_t[np.nanargmax(dev_f)]
         test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
@@ -78,8 +79,8 @@ for dm_cnt, distance_metric in enumerate(dms):
         print "\t\t- Precision: "+str(test_p)
         print "\t\t- Recall: "+str(test_r)
 
-        same_author_densities = np.asarray([sc for c, sc in results if c == "same_author"])
-        diff_author_densities = np.asarray([sc for c, sc in results if c == "diff_author"])
+        same_author_densities = np.asarray([sc for c, sc in test_results if c == "same_author"])
+        diff_author_densities = np.asarray([sc for c, sc in test_results if c == "diff_author"])
         D, p = ks_2samp(same_author_densities, diff_author_densities)
         print "\t\t- KS: D = "+str(D)+" (p = "+str(p)+")"
         sb.set_style("dark")
