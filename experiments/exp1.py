@@ -32,8 +32,9 @@ import numpy as np
 
 
 data_path = "../data/"
-corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
-n_experiments = 20
+#corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
+corpora = ["du_essays"]
+n_experiments = 100
 
 corpora_results = {}
 
