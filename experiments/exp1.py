@@ -34,7 +34,7 @@ import numpy as np
 data_path = "../data/"
 #corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
 corpora = ["du_essays"]
-n_experiments = 100
+n_experiments = 30
 
 corpora_results = {}
 
@@ -107,5 +107,12 @@ for corpus in corpora:
         sb.plt.legend(loc='best')
         sb.plt.savefig("../plots/exp1_"+distance_metric+".pdf")
         sb.plt.clf()
+    df = df.set_index("distance_metric")
+    df.columns.name = "vector space model"
+    df.index.name = "distance metric"
+    df = df.applymap(lambda x:int(x*100))
+    sb.heatmap(df, annot=True)
+    sb.plt.savefig("../plots/exp1_"+distance_metric+"_"+vsm+".pdf")
+    sb.plt.clf()
     corpora_results[corpus] = df
     print str(df.to_string())
