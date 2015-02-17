@@ -23,6 +23,7 @@ from verification.plotting import plot_test_results
 from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
 import numpy as np
+import pandas as pd
 
 from scipy.stats import ks_2samp
 
@@ -79,24 +80,29 @@ print "\t\t- F-score: "+str(test_f)
 print "\t\t- Precision: "+str(test_p)
 print "\t\t- Recall: "+str(test_r)
 
+intervals = 5
+
 print "=== RESAMPLING ==="
-potential_imposter_ranges = [int(i) for i in np.linspace(10, 75, 5)]
-for n_potential_imposters in potential_imposter_ranges:
+potential_imposter_ranges = [int(i) for i in np.linspace(10, int(len(train_titles)/2), intervals)]
+df = pd.DataFrame(columns=["potential"]+[str(n+1) for n in range(intervals)])
+print df.to_string()
+for i, n_potential_imposters in enumerate(potential_imposter_ranges):
+    row = [str(i+1)]
     print "* nr of potential imposters: "+str(n_potential_imposters)
-    n_actual_imposter_ranges = [int(i) for i in np.linspace(2, n_potential_imposters, 5)]
+    n_actual_imposter_ranges = [int(i) for i in np.linspace(1, n_potential_imposters, intervals)]
     for n_actual_imposters in n_actual_imposter_ranges:
         print "\t+ nr of actual imposters: "+str(n_actual_imposters)
-        verifier = Verification(n_features=V,
+        verifier = Verification(n_features=50,
                                 random_prop=0.5,
                                 sample_features=True,
                                 sample_authors=True,
                                 metric=dm,
                                 text_cutoff=None,
-                                sample_iterations=100,
+                                sample_iterations=50,
                                 n_potential_imposters=n_potential_imposters,
                                 n_actual_imposters=n_actual_imposters,
-                                n_train_pairs=200,
-                                n_test_pairs=200,
+                                n_train_pairs=50,
+                                n_test_pairs=50,
                                 random_state=1,
                                 vector_space_model=vsm,
                                 balanced_pairs=True)
@@ -107,7 +113,17 @@ for n_potential_imposters in potential_imposter_ranges:
         dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
         best_t = dev_t[np.nanargmax(dev_f)]
         test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+        row.append(test_f)
         print "\t\t- F-score: "+str(test_f)
         print "\t\t- Precision: "+str(test_p)
         print "\t\t- Recall: "+str(test_r)
-
+    df.loc[i] = row
+    print df.to_string()
+df = df.set_index("potential")
+df.columns.name = "actual imposters"
+df.index.name = "potential imposters"
+df = df.applymap(lambda x:int(x*100))
+sb.heatmap(df, annot=True)
+sb.plt.savefig("../plots/exp3.pdf")
+sb.plt.clf()
+print str(df.to_string())
