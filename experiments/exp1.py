@@ -1,14 +1,4 @@
-"""
-# First experiment
-* Setup: For a given distance metric and data set, we compare the performance across several vector spaces.
-We report F1-scores across for an increasing number of MFW (starting a 50).
-We use traditional score-thresholding and a 50-50 dev-test split of the available documents (randomly selected 10000 test).
-* Observations:
-Using a larger vocabulary consistently helps (results quickly max out after 5,000 features).
-update > Have checked this for all data sets; same pattern emegeres
-Ergo: In the rest of the paper we can use all available features without significantly harming performance.
-Std and plm yield the best results. Tf hardly helps. Tf-idf yields surprisingly unstable results.
-"""
+""" Experiment 1: Baseline experiment. """
 
 import logging
 
@@ -34,11 +24,12 @@ import numpy as np
 data_path = "../data/"
 #corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
 corpora = ["du_essays"]
-n_experiments = 30
+n_experiments = 100
 
 corpora_results = {}
 
 for corpus in corpora:
+    print("=== "+corpus+" ===")
     # we select a data set and a distance metric:
     train = data_path+corpus
     test = train
@@ -57,23 +48,27 @@ for corpus in corpora:
     # we determine the size of the vocabulary
     V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
     # we define the intervals which which to increase the top-n features (MFW)
-    feature_ranges = np.linspace(30, V, n_experiments)
+    feature_ranges = [int(x) for x in np.linspace(30, V, n_experiments)]
 
     vsms = ('std', 'plm', 'tf', 'idf')
 
-    df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
+    f1_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
+    nf_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
     # we iterate over the distance metrics:
     for i, distance_metric in enumerate(['minmax', 'divergence', 'euclidean', 'cityblock']):
+        print("* "+distance_metric)
         # we iterate over the vector space models:
-        vsm_row = [distance_metric]
+        vsm_fscore_row = [distance_metric]
+        vsm_nfeat_row = [distance_metric]
         for vsm in vsms:
-            f_scores = []
+            print("\t+ "+vsm)
+            train_f_scores, test_f_scores = [], []
             for n_features in feature_ranges:
                 verifier = Verification(random_state=1,
                                         metric=distance_metric,
                                         sample_authors=False,
                                         sample_features=False,
-                                        n_features=int(n_features),
+                                        n_features=n_features,
                                         n_test_pairs=10000,
                                         n_train_pairs=10000,
                                         em_iterations=100,
@@ -87,32 +82,50 @@ for corpus in corpora:
                 results, test_results = verifier.verify()
 
                 logging.info("Computing results")
-                dev_f, dev_p, dev_r, dev_t = evaluate(results)
-                #print np.nanmax(dev_f)
-                best_t = dev_t[np.nanargmax(dev_f)]
+                train_f, train_p, train_r, train_t = evaluate(results)
+
+                best_t = train_t[np.nanargmax(train_f)]
+                train_f_scores.append(np.nanmax(train_f))
 
                 test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t) 
-                f_scores.append(test_f)
+                test_f_scores.append(test_f)
 
-            print vsm, sum(f_scores), sum(f_scores) / len(f_scores)
-            # collect max_score across feature ranges
-            vsm_row.append(np.nanmax(f_scores))
+            # collect max_score across feature ranges:
+            best_index = np.nanargmax(train_f_scores)
+            best_n_features = feature_ranges[best_index]
+            vsm_nfeat_row.append(best_n_features)
+            print("\t\tbest n_features: "+str(best_n_features))
+            # collect test results:
+            f_test = test_f_scores[best_index]
+            vsm_fscore_row.append(f_test)
+            print("\t\tF1-score: "+str(f_test))
             # plot the results
             sb.set_style("darkgrid")
-            sb.plt.plot(feature_ranges, f_scores, label=vsm)
-        print vsm_row
-        df.loc[i] = vsm_row
+            sb.plt.plot(feature_ranges, train_f_scores, label=vsm)
+
+        f1_df.loc[i] = vsm_fscore_row
+        nf_df.loc[i] = vsm_nfeat_row
         # plot the results:
         sb.plt.title(distance_metric)
         sb.plt.legend(loc='best')
         sb.plt.savefig("../plots/exp1_"+distance_metric+".pdf")
         sb.plt.clf()
-    df = df.set_index("distance_metric")
-    df.columns.name = "vector space model"
-    df.index.name = "distance metric"
-    df = df.applymap(lambda x:int(x*100))
-    sb.heatmap(df, annot=True)
-    sb.plt.savefig("../plots/exp1_"+distance_metric+"_"+vsm+".pdf")
+    # set indices:
+    f1_df = f1_df.set_index("distance_metric")
+    nf_df = nf_df.set_index("distance_metric")
+    # row and col names:
+    f1_df.columns.name = "vector space model"
+    nf_df.columns.name = "vector space model"
+    f1_df.index.name = "distance metric"
+    nf_df.index.name = "distance metric"
+    # plot fscores:
+    f1_df = f1_df.applymap(lambda x:int(x*100))
+    sb.heatmap(f1_df, annot=True)
+    sb.plt.savefig("../plots/exp1_"+corpus+"_"+distance_metric+"_"+vsm+".pdf")
     sb.plt.clf()
-    corpora_results[corpus] = df
-    print str(df.to_string())
+    corpora_results[corpus+"_f-scores"] = f1_df
+    corpora_results[corpus+"_n-features"] = nf_df
+    print("=== f-scores ===")
+    print str(f1_df.to_string())
+    print("=== n-features ===")
+    print str(nf_df.to_string())
