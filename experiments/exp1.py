@@ -24,7 +24,7 @@ import numpy as np
 data_path = "../data/"
 #corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
 corpora = ["du_essays"]
-n_experiments = 100
+n_experiments = 30
 
 corpora_results = {}
 
@@ -120,9 +120,6 @@ for corpus in corpora:
     nf_df.index.name = "distance metric"
     # plot fscores:
     f1_df = f1_df.applymap(lambda x:int(x*100))
-    sb.heatmap(f1_df, annot=True)
-    sb.plt.savefig("../plots/exp1_"+corpus+"_"+distance_metric+"_"+vsm+".pdf")
-    sb.plt.clf()
     corpora_results[corpus+"_f-scores"] = f1_df
     corpora_results[corpus+"_n-features"] = nf_df
     print("=== f-scores ===")
