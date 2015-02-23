@@ -3,7 +3,7 @@
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                    level=logging.WARN)
+                    level=logging.ERROR)
 
 import matplotlib
 matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
@@ -22,9 +22,9 @@ import numpy as np
 
 
 data_path = "../data/"
-#corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
-corpora = ["du_essays"]
-n_experiments = 30
+corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
+#corpora = ["du_essays"]
+n_experiments = 100
 
 corpora_results = {}
 
@@ -35,15 +35,11 @@ for corpus in corpora:
     test = train
     # we prepare the corpus:
     logging.info("preparing corpus")
-    if train == test:
-        data = prepare_corpus(train)
-        train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
-            data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
-        X_train = Dataset(train_texts, train_titles, train_authors)
-        X_test = Dataset(test_texts, test_titles, test_authors)
-    else:
-        X_train = prepare_corpus(train)
-        X_test = prepare_corpus(test)
+    data = prepare_corpus(train)
+    train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
+        data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
+    X_train = Dataset(train_texts, train_titles, train_authors)
+    X_test = Dataset(test_texts, test_titles, test_authors)
 
     # we determine the size of the vocabulary
     V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
@@ -64,16 +60,17 @@ for corpus in corpora:
             print("\t+ "+vsm)
             train_f_scores, test_f_scores = [], []
             for n_features in feature_ranges:
-                verifier = Verification(random_state=1,
+                verifier = Verification(random_state=1000,
                                         metric=distance_metric,
                                         sample_authors=False,
                                         sample_features=False,
                                         n_features=n_features,
-                                        n_test_pairs=10000,
-                                        n_train_pairs=10000,
+                                        n_test_pairs=500,
+                                        n_train_pairs=500,
                                         em_iterations=100,
                                         vector_space_model=vsm,
                                         weight=0.2,
+                                        top_rank=1,
                                         eps=0.01,
                                         norm="l2",
                                         balanced_pairs=True)
@@ -87,7 +84,7 @@ for corpus in corpora:
                 best_t = train_t[np.nanargmax(train_f)]
                 train_f_scores.append(np.nanmax(train_f))
 
-                test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t) 
+                test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
                 test_f_scores.append(test_f)
 
             # collect max_score across feature ranges:
@@ -119,10 +116,9 @@ for corpus in corpora:
     f1_df.index.name = "distance metric"
     nf_df.index.name = "distance metric"
     # plot fscores:
-    f1_df = f1_df.applymap(lambda x:int(x*100))
     corpora_results[corpus+"_f-scores"] = f1_df
     corpora_results[corpus+"_n-features"] = nf_df
     print("=== f-scores ===")
-    print str(f1_df.to_string())
+    print str(f1_df.to_latex())
     print("=== n-features ===")
-    print str(nf_df.to_string())
+    print str(nf_df.to_latex())

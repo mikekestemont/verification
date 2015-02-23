@@ -7,7 +7,7 @@ using the entire vocabulary.
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                    level=logging.WARN)
+                    level=logging.INFO)
 
 from scipy.stats import ks_2samp
 
@@ -36,7 +36,7 @@ logging.info("preparing corpus")
 if train == test:
     data = prepare_corpus(train)
     train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
-        data.texts, data.titles, data.authors, test_size=0.5, random_state=1956)
+        data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
     X_train = Dataset(train_texts, train_titles, train_authors)
     X_test = Dataset(test_texts, test_titles, test_authors)
     print len(X_train.texts)
@@ -58,13 +58,21 @@ c1, c2 = sb.color_palette("Set1")[:2]
 
 for dm_cnt, distance_metric in enumerate(dms):
     for vsm_cnt, vector_space_model in enumerate(vsms):
-        verifier = Verification(random_state=1, sample_features=False,
-                                metric=distance_metric, sample_authors=False,
-                                n_features=V, n_train_pairs=1000,
-                                n_test_pairs=1000, em_iterations=100,
-                                vector_space_model=vector_space_model, weight=0.2,
-                                n_actual_imposters=10, eps=0.01,
-                                norm="l2", top_rank=3, balanced_pairs=True)
+        verifier = Verification(random_state=1000,
+                                sample_features=False,
+                                metric=distance_metric,
+                                sample_authors=False,
+                                n_features=V,
+                                n_train_pairs=500,
+                                n_test_pairs=500,
+                                em_iterations=100,
+                                vector_space_model=vector_space_model,
+                                weight=0.2,
+                                n_actual_imposters=10,
+                                eps=0.01,
+                                norm="l2",
+                                top_rank=1,
+                                balanced_pairs=True)
         logging.info("Starting verification [train / test]")
         verifier.fit(X_train, X_test)
         train_results, test_results = verifier.verify()
@@ -79,8 +87,8 @@ for dm_cnt, distance_metric in enumerate(dms):
         print "\t\t- Precision: "+str(test_p)
         print "\t\t- Recall: "+str(test_r)
 
-        same_author_densities = np.asarray([sc for c, sc in test_results if c == "same_author"])
-        diff_author_densities = np.asarray([sc for c, sc in test_results if c == "diff_author"])
+        same_author_densities = np.asarray([sc for c, sc in train_results if c == "same_author"])
+        diff_author_densities = np.asarray([sc for c, sc in train_results if c == "diff_author"])
         D, p = ks_2samp(same_author_densities, diff_author_densities)
         print "\t\t- KS: D = "+str(D)+" (p = "+str(p)+")"
         sb.set_style("dark")
