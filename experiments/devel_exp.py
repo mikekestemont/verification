@@ -24,19 +24,18 @@ from sklearn.cross_validation import train_test_split
 import numpy as np
 
 # select a data set
-train = "../data/caesar_background"
-test = "../data/caesar_devel"
-print "Using train data under: "+train
-print "Using test data under: "+test
+corpus = "../data/du_essays"
 
 # we prepare the corpus
 logging.info("preparing corpus")
-X_train = prepare_corpus(train)
-X_test = prepare_corpus(test)
+data = prepare_corpus(corpus)
+train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
+      data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
+X_train = Dataset(train_texts, train_titles, train_authors)
+X_test = Dataset(test_texts, test_titles, test_authors)
 
 # we determine the size of the entire vocabulary
 V = 2000
-
 vsm = 'plm'
 dm  = 'minmax'
 
@@ -46,14 +45,14 @@ verifier = Verification(random_state=1000,
                         sample_authors=False,
                         n_features=V,
                         n_train_pairs=100,
-                        n_test_pairs=1000,
+                        n_test_pairs=100,
                         em_iterations=100,
                         vector_space_model=vsm,
                         weight=0.2,
                         n_actual_imposters=10,
                         eps=0.01,
                         norm="l2",
-                        top_rank=3,
+                        top_rank=1,
                         balanced_pairs=True)
 
 logging.info("Starting verification [train / test]")
@@ -69,6 +68,3 @@ print("Test results for: "+vsm+" & "+dm+":")
 print("\t\t- F-score: "+str(test_f))
 print("\t\t- Precision: "+str(test_p))
 print("\t\t- Recall: "+str(test_r))
-
-# draw tree for test samples:
-draw_tree(tree_df=verifier.df_test, label="test")

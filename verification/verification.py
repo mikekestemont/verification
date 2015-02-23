@@ -3,9 +3,16 @@ from functools import partial
 from itertools import combinations
 from operator import itemgetter
 
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+import seaborn as sb
+
 import numpy as np
 import scipy.sparse as sp
 import pandas as pd
+from scipy.cluster.hierarchy import set_link_color_palette
+from matplotlib.colors import rgb2hex
 
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
@@ -20,8 +27,6 @@ from sparse_plm import SparsePLM
 
 from preprocessing import analyzer, identity
 from distances import minmax, divergence, cityblock, cosine, euclidean
-from plotting import prec_recall_curve, plot_test_densities, plot_test_results
-
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.INFO)
@@ -66,7 +71,7 @@ class Verification(object):
                  n_actual_imposters=10, n_train_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
                  ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
-                 balanced_pairs=False):
+                 balanced_pairs=False, deep=False):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -90,6 +95,7 @@ class Verification(object):
         if balanced_pairs:
             self._setup_pairs = self._setup_balanced_pairs
         self.top_rank = top_rank
+        self.deep = deep
 
         self.parameters = {'tf__max_features': n_features,
                            'tf__ngram_range': ngram_range,
@@ -247,13 +253,13 @@ class Verification(object):
             # append the correct label:
             if author_i == author_j:
                 labels.append("same_author")
-                print("same_author")
+                #print("same_author")
             else:
                 labels.append("diff_author")
-                print("diff_author")
+                #print("diff_author")
             # append the sigma as a distance measure (1 - sigma)
             sigma = 1 - targets / self.sample_iterations
-            print str(sigma)+"!!!"
+            #print str(sigma)+"!!!"
             sigmas.append(sigma)
         return sigmas, labels
 
@@ -289,6 +295,8 @@ class Verification(object):
         # populate with the scores (that we have, cf. limited nr of pairs):
         for d, (i, j) in zip(dists, pairs):
             df.ix[i,j+1] = d
+        # set index:
+        df = df.set_index("id")
         # save:
         df.to_csv("../plots/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
         return df
@@ -300,10 +308,12 @@ class Verification(object):
         test_pairs = self._setup_pairs(phase="test")
         if self.sample_authors or self.sample_features:
             train_scores, test_scores = self._verification_with_sampling(train_pairs, test_pairs)
+        elif self.deep == True:
+            pass
         else:
             train_scores, test_scores = self._verification_without_sampling(train_pairs, test_pairs)
         train_dists, test_dists = [score for label, score in train_scores], [score for label, score in test_scores]
         # dump the distance tables (in so far as they are filled):
-        self.get_distance_table(train_dists, train_pairs, "train")
-        self.get_distance_table(test_dists, test_pairs, "test")
+        self.df_train = self.get_distance_table(train_dists, train_pairs, "train")
+        self.df_test = self.get_distance_table(test_dists, test_pairs, "test")
         return (train_scores, test_scores)
