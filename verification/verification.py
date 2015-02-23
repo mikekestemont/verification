@@ -28,6 +28,8 @@ from sparse_plm import SparsePLM
 from preprocessing import analyzer, identity
 from distances import minmax, divergence, cityblock, cosine, euclidean
 
+import theanets
+
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.INFO)
 
@@ -282,6 +284,26 @@ class Verification(object):
         test_scores = zip(test_labels, test_sigmas)
         return train_scores, test_scores
 
+    def _verification_with_network(self, train_pairs, test_pairs):
+        print "test"
+        train_scores, test_scores = [], []
+        pretrain_matrix, train_labels = [], []
+        X, authors = self.X_train.toarray(), self.train_authors
+        print train_pairs
+        for (i, j) in train_pairs:
+            vector = np.concatenate((X[i],X[j]))
+            pretrain_matrix.append(vector)
+            if authors[i] == authors[j]:
+                train_labels.append("same_author")
+            else:
+                train_labels.append("diff_author")
+        print type(pretrain_matrix)
+        pretrain_matrix = np.asarray(pretrain_matrix)
+        e = theanets.Experiment(theanets.Autoencoder, layers=(len(pretrain_matrix[0]), 100, len(pretrain_matrix[0])))
+        e.train()
+        return train_scores, test_scores
+
+
     def get_distance_table(self, dists, pairs, phase):
         if phase == 'train':
             titles, authors = self.train_titles, self.train_authors
@@ -309,7 +331,7 @@ class Verification(object):
         if self.sample_authors or self.sample_features:
             train_scores, test_scores = self._verification_with_sampling(train_pairs, test_pairs)
         elif self.deep == True:
-            pass
+            train_scores, test_scores = self._verification_with_network(train_pairs, test_pairs)
         else:
             train_scores, test_scores = self._verification_without_sampling(train_pairs, test_pairs)
         train_dists, test_dists = [score for label, score in train_scores], [score for label, score in test_scores]

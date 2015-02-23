@@ -40,10 +40,11 @@ vsm = 'plm'
 dm  = 'minmax'
 
 verifier = Verification(random_state=1000,
+                        deep=True,
                         sample_features=False,
                         metric=dm,
                         sample_authors=False,
-                        n_features=V,
+                        n_features=1000,
                         n_train_pairs=100,
                         n_test_pairs=100,
                         em_iterations=100,
