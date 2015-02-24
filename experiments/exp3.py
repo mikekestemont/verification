@@ -23,7 +23,7 @@ import pandas as pd
 from scipy.stats import ks_2samp
 
 # select a data set
-train = "../data/du_essays"
+train = "../data/gr_articles"
 test = train
 print "Using data under: "+train
 
