@@ -46,7 +46,7 @@ dm  = 'minmax'
 print "\t* "+vsm+" & "+dm
 
 print "=== BASELINE (without sampling) ==="
-verifier = Verification(n_features=2400,
+verifier = Verification(n_features=10000,
                         random_prop=0.5,
                         sample_features=False,
                         sample_authors=False,
@@ -83,7 +83,7 @@ for i, n_potential_imposters in enumerate(potential_imposter_ranges):
     n_actual_imposter_ranges = [int(i) for i in np.linspace(1, n_potential_imposters, intervals)]
     for n_actual_imposters in n_actual_imposter_ranges:
         print "\t+ nr of actual imposters: "+str(n_actual_imposters)
-        verifier = Verification(n_features=V,
+        verifier = Verification(n_features=10000,
                                 random_prop=0.5,
                                 sample_features=True,
                                 sample_authors=True,
@@ -94,7 +94,7 @@ for i, n_potential_imposters in enumerate(potential_imposter_ranges):
                                 n_actual_imposters=n_actual_imposters,
                                 n_train_pairs=500,
                                 n_test_pairs=500,
-                                random_state=1,
+                                random_state=1000,
                                 top_rank=1,
                                 vector_space_model=vsm,
                                 balanced_pairs=True)
