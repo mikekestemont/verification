@@ -21,14 +21,19 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.neighbors import dist_metrics
 from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import f1_score, precision_score, recall_score
-from sklearn.preprocessing import StandardScaler, Normalizer
+from sklearn.preprocessing import StandardScaler, Normalizer, LabelEncoder
 from gensim.utils import tokenize
 from sparse_plm import SparsePLM
+
 
 from preprocessing import analyzer, identity
 from distances import minmax, divergence, cityblock, cosine, euclidean
 
+from sklearn.cross_validation import train_test_split
+
 import theanets
+import theano
+FLOAT = theano.config.floatX
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.INFO)
@@ -285,22 +290,31 @@ class Verification(object):
         return train_scores, test_scores
 
     def _verification_with_network(self, train_pairs, test_pairs):
-        print "test"
+        print "......."
         train_scores, test_scores = [], []
-        pretrain_matrix, train_labels = [], []
+        pretrain_matrix, labels = [], []
         X, authors = self.X_train.toarray(), self.train_authors
-        print train_pairs
         for (i, j) in train_pairs:
             vector = np.concatenate((X[i],X[j]))
             pretrain_matrix.append(vector)
             if authors[i] == authors[j]:
-                train_labels.append("same_author")
+                labels.append("same_author")
             else:
-                train_labels.append("diff_author")
-        print type(pretrain_matrix)
-        pretrain_matrix = np.asarray(pretrain_matrix)
-        e = theanets.Experiment(theanets.Autoencoder, layers=(len(pretrain_matrix[0]), 100, len(pretrain_matrix[0])))
-        e.train()
+                labels.append("diff_author")
+        train_X, dev_X, train_labels, dev_labels = train_test_split(pretrain_matrix, labels,
+                                                        test_size=0.5, random_state=1000)
+        train_X, dev_X = np.asarray(train_X).astype(FLOAT), np.asarray(dev_X).astype(FLOAT)
+        train_labels, dev_labels = np.asarray(train_labels), np.asarray(dev_labels)
+        enc = LabelEncoder()
+        enc.fit(["same_author", "diff_author"])
+        train_labels = np.matrix(enc.transform(train_labels).astype(np.uint8))
+        dev_labels = np.matrix(enc.transform(dev_labels).astype(np.uint8))
+        train, dev = (train_X, train_labels), (dev_X, dev_labels)
+        e = theanets.Experiment(theanets.Classifier,
+                                layers=(train_X.shape[1], 100, 50, 2),
+                                hidden_l1=0.1,
+                                train_batches=50)
+        e.train(train, dev, optimize='pretraining', patience=1, min_improvement=0.1)
         return train_scores, test_scores
 
 
