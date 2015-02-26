@@ -247,13 +247,10 @@ class Verification(object):
             # append the correct label:
             if author_i == author_j:
                 labels.append("same_author")
-                print("same_author")
             else:
                 labels.append("diff_author")
-                print("diff_author")
             # append the sigma as a distance measure (1 - sigma)
             sigma = 1 - targets / self.sample_iterations
-            print str(sigma)+"!!!"
             sigmas.append(sigma)
         return sigmas, labels
 
@@ -290,20 +287,19 @@ class Verification(object):
         for d, (i, j) in zip(dists, pairs):
             df.ix[i,j+1] = d
         # save:
+        df = df.set_index("id")
         df.to_csv("../plots/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
         return df
 
     def verify(self):
         "Start the verification procedure."
         # set the pairs:
-        train_pairs = self._setup_pairs(phase="train")
-        test_pairs = self._setup_pairs(phase="test")
+        self.train_pairs = self._setup_pairs(phase="train")
+        self.test_pairs = self._setup_pairs(phase="test")
         if self.sample_authors or self.sample_features:
-            train_scores, test_scores = self._verification_with_sampling(train_pairs, test_pairs)
+            self.train_scores, self.test_scores = self._verification_with_sampling(self.train_pairs, self.test_pairs)
         else:
-            train_scores, test_scores = self._verification_without_sampling(train_pairs, test_pairs)
-        train_dists, test_dists = [score for label, score in train_scores], [score for label, score in test_scores]
-        # dump the distance tables (in so far as they are filled):
-        self.get_distance_table(train_dists, train_pairs, "train")
-        self.get_distance_table(test_dists, test_pairs, "test")
-        return (train_scores, test_scores)
+            self.train_scores, self.test_scores = self._verification_without_sampling(self.train_pairs, self.test_pairs)
+        self.train_dists, self.test_dists = [score for label, score in self.train_scores],\
+                                            [score for label, score in self.test_scores]
+        return (self.train_scores, self.test_scores)
