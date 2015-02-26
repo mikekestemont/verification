@@ -1,12 +1,8 @@
-"""
-We plot the different distributions in scores for same-author and different-author pairs
-in the dev set, and calculate whether they are statistically significantly different,
-using the entire vocabulary.
-"""
 
 import logging
+
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                    level=logging.INFO)
+                    level=logging.WARNING)
 
 import matplotlib
 matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
@@ -18,57 +14,139 @@ import seaborn as sb
 from verification.verification import Verification
 from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
 from verification.evaluation import rank_predict
-from verification.plotting import draw_tree
+from verification.plotting import plot_test_results
 from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
 import numpy as np
+import pandas as pd
+
+from scipy.stats import ks_2samp
 
 # select a data set
-train = "../data/caesar_background"
-test = "../data/caesar_devel"
-print "Using train data under: "+train
-print "Using test data under: "+test
+train = "../data/gr_articles"
+test = train
+print "Using data under: "+train
 
 # we prepare the corpus
 logging.info("preparing corpus")
-X_train = prepare_corpus(train)
-X_test = prepare_corpus(test)
+data = prepare_corpus(train)
+train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
+    data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
+X_train = Dataset(train_texts, train_titles, train_authors)
+X_test = Dataset(test_texts, test_titles, test_authors)
 
 # we determine the size of the entire vocabulary
-V = 2000
+V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
 
-vsm = 'plm'
+#vsms = ('std', 'plm', 'tf', 'idf')
+#dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
+
+vsm = 'std'
 dm  = 'minmax'
+print "\t* "+vsm+" & "+dm
 
-verifier = Verification(random_state=1000,
+print "=== BASELINE (without sampling) ==="
+verifier = Verification(n_features=10000,
+                        random_prop=0.5,
                         sample_features=False,
-                        metric=dm,
                         sample_authors=False,
-                        n_features=V,
-                        n_train_pairs=100,
-                        n_test_pairs=1000,
-                        em_iterations=100,
+                        metric=dm,
+                        text_cutoff=None,
+                        sample_iterations=100,
+                        n_potential_imposters=100,
+                        n_actual_imposters=25,
+                        n_train_pairs=500,
+                        n_test_pairs=500,
+                        random_state=1000,
                         vector_space_model=vsm,
-                        weight=0.2,
-                        n_actual_imposters=10,
-                        eps=0.01,
-                        norm="l2",
-                        top_rank=3,
                         balanced_pairs=True)
-
 logging.info("Starting verification [train / test]")
 verifier.fit(X_train, X_test)
 train_results, test_results = verifier.verify()
 logging.info("Computing results")
-train_f, train_p, train_r, train_t = evaluate(train_results)
+dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
+best_t = dev_t[np.nanargmax(dev_f)]
+test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+print "\t\t- F-score: "+str(test_f)
+print "\t\t- Precision: "+str(test_p)
+print "\t\t- Recall: "+str(test_r)
 
-best_train_t = train_t[np.nanargmax(train_f)]
-test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_train_t)
+intervals = 8
 
-print("Test results for: "+vsm+" & "+dm+":")
-print("\t\t- F-score: "+str(test_f))
-print("\t\t- Precision: "+str(test_p))
-print("\t\t- Recall: "+str(test_r))
+print "=== RESAMPLING ==="
+potential_imposter_ranges = [int(i) for i in np.linspace(10, int(len(train_titles)/2), intervals)]
+df_test = pd.DataFrame(columns=["potential"]+[str(n+1) for n in range(intervals)])
+df_train = pd.DataFrame(columns=["potential"]+[str(n+1) for n in range(intervals)])
 
-# draw tree for test samples:
-draw_tree(tree_df=verifier.df_test, label="test")
+for i, n_potential_imposters in enumerate(potential_imposter_ranges):
+    test_row = [str(n_potential_imposters)]
+    train_row = [str(n_potential_imposters)]
+    print "* nr of potential imposters: "+str(n_potential_imposters)
+    n_actual_imposter_ranges = [int(i) for i in np.linspace(1, n_potential_imposters, intervals)]
+    for n_actual_imposters in n_actual_imposter_ranges:
+        print "\t+ nr of actual imposters: "+str(n_actual_imposters)
+        verifier = Verification(n_features=V,
+                                random_prop=0.5,
+                                sample_features=True,
+                                sample_authors=True,
+                                metric=dm,
+                                text_cutoff=None,
+                                sample_iterations=100,
+                                n_potential_imposters=n_potential_imposters,
+                                n_actual_imposters=n_actual_imposters,
+                                n_train_pairs=500,
+                                n_test_pairs=500,
+                                random_state=1000,
+                                top_rank=1,
+                                vector_space_model=vsm,
+                                balanced_pairs=True)
+        logging.info("Starting verification [train / test]")
+        verifier.fit(X_train, X_test)
+        train_results, test_results = verifier.verify()
+        logging.info("Computing results")
+        # get train results:
+        dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
+        best_t = dev_t[np.nanargmax(dev_f)]
+        train_f, train_p, train_r = evaluate_with_threshold(train_results, t=best_t)
+        print "\t\t=== train scores ==="
+        print "\t\t- F-score: "+str(train_f)
+        print "\t\t- Precision: "+str(train_p)
+        print "\t\t- Recall: "+str(train_r)
+        train_row.append(train_f)
+        # get test results:
+        test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+        print ("\t\t=== test scores ===")
+        print "\t\t- F-score: "+str(test_f)
+        print "\t\t- Precision: "+str(test_p)
+        print "\t\t- Recall: "+str(test_r)
+        test_row.append(test_f)
+    # update train df:
+    df_train.loc[i] = train_row
+    print "=== train scores ==="
+    print df_train.to_string()
+    # update test df:
+    df_test.loc[i] = test_row
+    print "=== test scores ==="
+    print df_test.to_string()
+# process and plot train df:
+df_train = df_train.set_index("potential")
+df_train.columns.name = "actual imposters"
+df_train.index.name = "potential imposters"
+df_train = df_train.applymap(lambda x:int(x*100))
+sb.plt.figure()
+sb.heatmap(df_train, annot=True)
+sb.plt.savefig("../plots/exp4_train.pdf")
+sb.plt.clf()
+print "=== train scores ==="
+print str(df_train.to_string())
+# process and plot train df:
+df_test = df_test.set_index("potential")
+df_test.columns.name = "actual imposters"
+df_test.index.name = "potential imposters"
+df_test = df_test.applymap(lambda x:int(x*100))
+sb.plt.figure()
+sb.heatmap(df_test, annot=True)
+sb.plt.savefig("../plots/exp4_test.pdf")
+sb.plt.clf()
+print "=== test scores ==="
+print str(df_test.to_string())

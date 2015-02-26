@@ -1,8 +1,9 @@
+""" Experiment 1: Baseline experiment. """
 
 import logging
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                    level=logging.WARNING)
+                    level=logging.ERROR)
 
 import matplotlib
 matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
@@ -11,142 +12,115 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sb
 
+import pandas as pd
+
 from verification.verification import Verification
-from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
-from verification.evaluation import rank_predict
-from verification.plotting import plot_test_results
+from verification.evaluation import evaluate, evaluate_with_threshold
 from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
 import numpy as np
-import pandas as pd
 
-from scipy.stats import ks_2samp
 
-# select a data set
-train = "../data/gr_articles"
-test = train
-print "Using data under: "+train
+data_path = "../data/"
+#corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
+corpora = ["du_essays"]
+n_experiments = 100
 
-# we prepare the corpus
-logging.info("preparing corpus")
-data = prepare_corpus(train)
-train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
-    data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
-X_train = Dataset(train_texts, train_titles, train_authors)
-X_test = Dataset(test_texts, test_titles, test_authors)
+corpora_results = {}
 
-# we determine the size of the entire vocabulary
-V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
+for corpus in corpora:
+    print("=== "+corpus+" ===")
+    # we select a data set and a distance metric:
+    train = data_path+corpus
+    test = train
+    # we prepare the corpus:
+    logging.info("preparing corpus")
+    data = prepare_corpus(train)
+    train_texts, test_texts, train_titles, test_titles, train_authors, test_authors = train_test_split(
+        data.texts, data.titles, data.authors, test_size=0.5, random_state=1000)
+    X_train = Dataset(train_texts, train_titles, train_authors)
+    X_test = Dataset(test_texts, test_titles, test_authors)
 
-#vsms = ('std', 'plm', 'tf', 'idf')
-#dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
+    # we determine the size of the vocabulary
+    V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
+    # we define the intervals which which to increase the top-n features (MFW)
+    feature_ranges = [int(x) for x in np.linspace(30, V, n_experiments)]
 
-vsm = 'plm'
-dm  = 'minmax'
-print "\t* "+vsm+" & "+dm
+    vsms = ('std', 'plm', 'tf', 'idf')
 
-print "=== BASELINE (without sampling) ==="
-verifier = Verification(n_features=10000,
-                        random_prop=0.5,
-                        sample_features=False,
-                        sample_authors=False,
-                        metric=dm,
-                        text_cutoff=None,
-                        sample_iterations=100,
-                        n_potential_imposters=100,
-                        n_actual_imposters=25,
-                        n_train_pairs=500,
-                        n_test_pairs=500,
-                        random_state=1000,
-                        vector_space_model=vsm,
-                        balanced_pairs=True)
-logging.info("Starting verification [train / test]")
-verifier.fit(X_train, X_test)
-train_results, test_results = verifier.verify()
-logging.info("Computing results")
-dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
-best_t = dev_t[np.nanargmax(dev_f)]
-test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
-print "\t\t- F-score: "+str(test_f)
-print "\t\t- Precision: "+str(test_p)
-print "\t\t- Recall: "+str(test_r)
+    f1_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
+    nf_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
+    # we iterate over the distance metrics:
+    for i, distance_metric in enumerate(['minmax', 'divergence', 'euclidean', 'cityblock']):
+        print("* "+distance_metric)
+        # we iterate over the vector space models:
+        vsm_fscore_row = [distance_metric]
+        vsm_nfeat_row = [distance_metric]
+        for vsm in vsms:
+            print("\t+ "+vsm)
+            train_f_scores, test_f_scores = [], []
+            for n_features in feature_ranges:
+                verifier = Verification(random_state=1000,
+                                        metric=distance_metric,
+                                        sample_authors=True,
+                                        sample_features=True,
+                                        n_features=n_features,
+                                        n_test_pairs=500,
+                                        n_train_pairs=500,
+                                        em_iterations=100,
+                                        vector_space_model=vsm,
+                                        n_potential_imposters=60,
+                                        n_actual_imposters=10,
+                                        weight=0.2,
+                                        top_rank=1,
+                                        eps=0.01,
+                                        norm="l2",
+                                        balanced_pairs=True)
+                logging.info("Starting verification [train / test]")
+                verifier.fit(X_train, X_test)
+                results, test_results = verifier.verify()
 
-intervals = 8
+                logging.info("Computing results")
+                train_f, train_p, train_r, train_t = evaluate(results)
 
-print "=== RESAMPLING ==="
-potential_imposter_ranges = [int(i) for i in np.linspace(10, int(len(train_titles)/2), intervals)]
-df_test = pd.DataFrame(columns=["potential"]+[str(n+1) for n in range(intervals)])
-df_train = pd.DataFrame(columns=["potential"]+[str(n+1) for n in range(intervals)])
+                best_t = train_t[np.nanargmax(train_f)]
+                train_f_scores.append(np.nanmax(train_f))
 
-for i, n_potential_imposters in enumerate(potential_imposter_ranges):
-    test_row = [str(n_potential_imposters)]
-    train_row = [str(n_potential_imposters)]
-    print "* nr of potential imposters: "+str(n_potential_imposters)
-    n_actual_imposter_ranges = [int(i) for i in np.linspace(1, n_potential_imposters, intervals)]
-    for n_actual_imposters in n_actual_imposter_ranges:
-        print "\t+ nr of actual imposters: "+str(n_actual_imposters)
-        verifier = Verification(n_features=2500,
-                                random_prop=0.5,
-                                sample_features=True,
-                                sample_authors=True,
-                                metric=dm,
-                                text_cutoff=None,
-                                sample_iterations=100,
-                                n_potential_imposters=n_potential_imposters,
-                                n_actual_imposters=n_actual_imposters,
-                                n_train_pairs=500,
-                                n_test_pairs=500,
-                                random_state=1000,
-                                top_rank=1,
-                                vector_space_model=vsm,
-                                balanced_pairs=True)
-        logging.info("Starting verification [train / test]")
-        verifier.fit(X_train, X_test)
-        train_results, test_results = verifier.verify()
-        logging.info("Computing results")
-        # get train results:
-        dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
-        best_t = dev_t[np.nanargmax(dev_f)]
-        train_f, train_p, train_r = evaluate_with_threshold(train_results, t=best_t)
-        print "\t\t=== train scores ==="
-        print "\t\t- F-score: "+str(train_f)
-        print "\t\t- Precision: "+str(train_p)
-        print "\t\t- Recall: "+str(train_r)
-        train_row.append(train_f)
-        # get test results:
-        test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
-        print ("\t\t=== test scores ===")
-        print "\t\t- F-score: "+str(test_f)
-        print "\t\t- Precision: "+str(test_p)
-        print "\t\t- Recall: "+str(test_r)
-        test_row.append(test_f)
-    # update train df:
-    df_train.loc[i] = train_row
-    print "=== train scores ==="
-    print df_train.to_string()
-    # update test df:
-    df_test.loc[i] = test_row
-    print "=== test scores ==="
-    print df_test.to_string()
-# process and plot train df:
-df_train = df_train.set_index("potential")
-df_train.columns.name = "actual imposters"
-df_train.index.name = "potential imposters"
-df_train = df_train.applymap(lambda x:int(x*10000))
-sb.plt.figure()
-sb.heatmap(df_train, annot=True)
-sb.plt.savefig("../plots/exp3_train.pdf")
-sb.plt.clf()
-print "=== train scores ==="
-print str(df_train.to_string())
-# process and plot train df:
-df_test = df_test.set_index("potential")
-df_test.columns.name = "actual imposters"
-df_test.index.name = "potential imposters"
-df_test = df_test.applymap(lambda x:int(x*10000))
-sb.plt.figure()
-sb.heatmap(df_test, annot=True)
-sb.plt.savefig("../plots/exp3_test.pdf")
-sb.plt.clf()
-print "=== test scores ==="
-print str(df_test.to_string())
+                test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+                test_f_scores.append(test_f)
+
+            # collect max_score across feature ranges:
+            best_index = np.nanargmax(train_f_scores)
+            best_n_features = feature_ranges[best_index]
+            vsm_nfeat_row.append(best_n_features)
+            print("\t\tbest n_features: "+str(best_n_features))
+            # collect test results:
+            f_test = test_f_scores[best_index]
+            vsm_fscore_row.append(f_test)
+            print("\t\tF1-score: "+str(f_test))
+            # plot the results
+            sb.set_style("darkgrid")
+            sb.plt.plot(feature_ranges, train_f_scores, label=vsm)
+
+        f1_df.loc[i] = vsm_fscore_row
+        nf_df.loc[i] = vsm_nfeat_row
+        # plot the results:
+        sb.plt.title(distance_metric)
+        sb.plt.legend(loc='best')
+        sb.plt.savefig("../plots/exp3_"+distance_metric+"_"+corpus+".pdf")
+        sb.plt.clf()
+    # set indices:
+    f1_df = f1_df.set_index("distance_metric")
+    nf_df = nf_df.set_index("distance_metric")
+    # row and col names:
+    f1_df.columns.name = "vector space model"
+    nf_df.columns.name = "vector space model"
+    f1_df.index.name = "distance metric"
+    nf_df.index.name = "distance metric"
+    # plot fscores:
+    corpora_results[corpus+"_f-scores"] = f1_df
+    corpora_results[corpus+"_n-features"] = nf_df
+    print("=== f-scores ===")
+    print str(f1_df.to_latex())
+    print("=== n-features ===")
+    print str(nf_df.to_latex())

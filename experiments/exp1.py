@@ -22,9 +22,9 @@ import numpy as np
 
 
 data_path = "../data/"
-corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
-#corpora = ["du_essays"]
-n_experiments = 100
+#corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
+corpora = ["du_essays"]
+n_experiments = 10
 
 corpora_results = {}
 
@@ -105,7 +105,7 @@ for corpus in corpora:
         # plot the results:
         sb.plt.title(distance_metric)
         sb.plt.legend(loc='best')
-        sb.plt.savefig("../plots/exp1_"+distance_metric+".pdf")
+        sb.plt.savefig("../plots/exp1_"+distance_metric+"_"+corpus+".pdf")
         sb.plt.clf()
     # set indices:
     f1_df = f1_df.set_index("distance_metric")
