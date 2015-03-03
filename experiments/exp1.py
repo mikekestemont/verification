@@ -15,6 +15,7 @@ import seaborn as sb
 import pandas as pd
 
 from verification.verification import Verification
+from verification.smooth import *
 from verification.evaluation import evaluate, evaluate_with_threshold
 from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
@@ -22,9 +23,9 @@ import numpy as np
 
 
 data_path = "../data/"
-#corpora = ["du_essays", "gr_articles", "caesar_background", "sp_articles"]
-corpora = ["du_essays"]
-n_experiments = 10
+corpora = ["du_essays", "gr_articles", "sp_articles", "caesar_background"]
+#corpora = ["du_essays"]
+n_experiments = 100
 
 corpora_results = {}
 
@@ -44,14 +45,14 @@ for corpus in corpora:
     # we determine the size of the vocabulary
     V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
     # we define the intervals which which to increase the top-n features (MFW)
-    feature_ranges = [int(x) for x in np.linspace(30, V, n_experiments)]
+    feature_ranges = [int(x) for x in np.linspace(30, int(V/2), n_experiments)]
 
     vsms = ('std', 'plm', 'tf', 'idf')
 
     f1_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
     nf_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
     # we iterate over the distance metrics:
-    for i, distance_metric in enumerate(['minmax', 'divergence', 'euclidean', 'cityblock']):
+    for i, distance_metric in enumerate(['minmax', 'euclidean', 'cityblock']):
         print("* "+distance_metric)
         # we iterate over the vector space models:
         vsm_fscore_row = [distance_metric]
@@ -70,7 +71,6 @@ for corpus in corpora:
                                         em_iterations=100,
                                         vector_space_model=vsm,
                                         weight=0.2,
-                                        top_rank=1,
                                         eps=0.01,
                                         norm="l2",
                                         balanced_pairs=True)
@@ -80,9 +80,10 @@ for corpus in corpora:
 
                 logging.info("Computing results")
                 train_f, train_p, train_r, train_t = evaluate(results)
-
-                best_t = train_t[np.nanargmax(train_f)]
                 train_f_scores.append(np.nanmax(train_f))
+
+                smooth_train_f = smooth(train_f, window_len=25, window='flat')
+                best_t = train_t[np.nanargmax(smooth_train_f)]
 
                 test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
                 test_f_scores.append(test_f)
@@ -118,6 +119,8 @@ for corpus in corpora:
     # plot fscores:
     corpora_results[corpus+"_f-scores"] = f1_df
     corpora_results[corpus+"_n-features"] = nf_df
+    nf_df.to_csv("../plots/exp1_"+distance_metric+"_"+corpus+"_nf.csv")
+    f1_df.to_csv("../plots/exp1_"+distance_metric+"_"+corpus+"_f1.csv")
     print("=== f-scores ===")
     print str(f1_df.to_latex())
     print("=== n-features ===")

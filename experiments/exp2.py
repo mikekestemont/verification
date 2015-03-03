@@ -19,6 +19,7 @@ import matplotlib.gridspec as gridspec
 import seaborn as sb
 
 from verification.verification import Verification
+from verification.smooth import *
 from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
 from verification.evaluation import rank_predict
 from verification.plotting import plot_test_results
@@ -45,10 +46,10 @@ else:
     X_test = prepare_corpus(test)
 
 # we determine the size of the entire vocabulary
-V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
+V = int(len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))/2)
 
 vsms = ('std', 'plm', 'tf', 'idf')
-dms  = ('euclidean', 'cityblock', 'divergence', 'minmax')
+dms  = ('euclidean', 'cityblock', 'minmax')
 
 # set fig params
 fig = sb.plt.figure(figsize=(len(dms), len(vsms)))
@@ -78,9 +79,10 @@ for dm_cnt, distance_metric in enumerate(dms):
         train_results, test_results = verifier.verify()
 
         logging.info("Computing results")
-        dev_f, dev_p, dev_r, dev_t = evaluate(train_results)
-        
-        best_t = dev_t[np.nanargmax(dev_f)]
+        train_f, train_p, train_r, train_t = evaluate(train_results)
+        smooth_train_f = smooth(train_f, window_len=25, window='flat')
+        best_t = train_t[np.nanargmax(smooth_train_f)]
+
         test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
         print "\t* "+vector_space_model+" & "+distance_metric+":"
         print "\t\t- F-score: "+str(test_f)

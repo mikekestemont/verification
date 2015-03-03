@@ -12,6 +12,7 @@ import matplotlib.gridspec as gridspec
 import seaborn as sb
 
 from verification.verification import Verification
+from verification.smooth import *
 from verification.evaluation import evaluate, evaluate_with_threshold, average_precision_score
 from verification.evaluation import rank_predict
 from verification.plotting import plot_test_results
@@ -36,10 +37,10 @@ X_train = Dataset(train_texts, train_titles, train_authors)
 X_test = Dataset(test_texts, test_titles, test_authors)
 
 # we determine the size of the entire vocabulary
-V = len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))
+V = int(len(set(sum(X_train.texts, []) + sum(X_test.texts, [])))/2)
 
 #vsms = ('std', 'plm', 'tf', 'idf')
-#dms  = ('cosine', 'euclidean', 'cityblock', 'divergence', 'minmax')
+#dms  = ('euclidean', 'cityblock', 'minmax')
 
 vsm = 'std'
 dm  = 'minmax'
@@ -113,6 +114,8 @@ for i, n_potential_imposters in enumerate(potential_imposter_ranges):
         print "\t\t- Precision: "+str(train_p)
         print "\t\t- Recall: "+str(train_r)
         train_row.append(train_f)
+        smooth_train_f = smooth(train_f, window_len=25, window='flat')
+        best_t = dev_t[np.nanargmax(smooth_train_f)]
         # get test results:
         test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
         print ("\t\t=== test scores ===")
