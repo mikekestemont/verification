@@ -44,10 +44,11 @@ pipelines = {
     'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
     'std': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False)),
                      ('scaler', DeltaWeightScaler())]),
-    'idf': Pipeline([('tf', CountVectorizer(analyzer=identity)),
+    'tfidf': Pipeline([('tf', CountVectorizer(analyzer=identity)),
                      ('tfidf', TfidfTransformer())]),
     'plm': Pipeline([('tf', CountVectorizer(analyzer=identity)),
-                     ('plm', SparsePLM())])
+                     ('plm', SparsePLM())]),
+    'bin': Pipeline([('tf', CountVectorizer(analyzer=identity, binary=True, dtype=np.float64))])
 }
 
 distance_metrics = {
@@ -63,7 +64,7 @@ class Verification(object):
     def __init__(self, n_features=1000, random_prop=0.5, sample_features=False,
                  sample_authors=False, metric='cosine', text_cutoff=None,
                  sample_iterations=10, n_potential_imposters=30,
-                 n_actual_imposters=10, n_train_pairs=None, n_test_pairs=None, random_state=None,
+                 n_actual_imposters=10, n_dev_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
                  ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
                  balanced_pairs=False):
@@ -80,7 +81,7 @@ class Verification(object):
             self.n_actual_imposters = n_actual_imposters
         else:
             self.n_actual_imposters = n_potential_imposters
-        self.n_train_pairs = n_train_pairs
+        self.n_dev_pairs = n_dev_pairs
         self.n_test_pairs = n_test_pairs
         self.vector_space_model = vector_space_model
         self.weight = weight
@@ -102,26 +103,26 @@ class Verification(object):
             self.parameters['plm__iterations'] = em_iterations
             self.parameters['plm__norm'] = norm
 
-    def fit(self, train_dataset, test_dataset):
-        self.train_data, self.train_titles, self.train_authors = train_dataset
+    def fit(self, dev_dataset, test_dataset):
+        self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
         self.test_data, self.test_titles, self.test_authors = test_dataset
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
-        transformer.fit(self.train_data + self.test_data)
-        self.X_train = transformer.transform(self.train_data)
-        logging.info("Training corpus: n_samples=%s / n_features=%s" % (
-            self.X_train.shape))
+        transformer.fit(self.dev_data + self.test_data)
+        self.X_dev = transformer.transform(self.dev_data)
+        logging.info("Development corpus: n_samples=%s / n_features=%s" % (
+            self.X_dev.shape))
         self.X_test = transformer.transform(self.test_data)
         logging.info("Test corpus: n_samples=%s / n_features=%s" % (
             self.X_test.shape))
         return self
 
 
-    def _setup_pairs(self, phase='train'):
+    def _setup_pairs(self, phase='dev'):
         pairs = []
-        if phase == "train":
-            titles, authors = self.train_titles, self.train_authors
-            n_pairs = self.n_train_pairs
+        if phase == "dev":
+            titles, authors = self.dev_titles, self.dev_authors
+            n_pairs = self.n_dev_pairs
         elif phase == "test":
             titles, authors = self.test_titles, self.test_authors
             n_pairs = self.n_test_pairs
@@ -142,10 +143,10 @@ class Verification(object):
             return pairs
         return pairs[:n_pairs]
 
-    def _setup_balanced_pairs(self, phase='train'):
-        if phase == 'train':
-            titles, authors = self.train_titles, self.train_authors
-            n_pairs = self.n_train_pairs
+    def _setup_balanced_pairs(self, phase='dev'):
+        if phase == 'dev':
+            titles, authors = self.dev_titles, self.dev_authors
+            n_pairs = self.n_dev_pairs
         elif phase == 'test':
             titles, authors = self.test_titles, self.test_authors
             n_pairs = self.n_test_pairs
@@ -169,10 +170,10 @@ class Verification(object):
         self.rnd.shuffle(pairs) # needed for proportional evaluation
         return pairs
 
-    def compute_distances(self, pairs=[], phase='train'):
+    def compute_distances(self, pairs=[], phase='dev'):
         distances, labels = [], []
-        X = self.X_train if phase == 'train' else self.X_test
-        authors = self.train_authors if phase == 'train' else self.test_authors
+        X = self.X_dev if phase == 'dev' else self.X_test
+        authors = self.dev_authors if phase == 'dev' else self.test_authors
         for k, (i, j) in enumerate(pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             dist = self.metric(X[i], X[j])
@@ -183,13 +184,13 @@ class Verification(object):
                 "diff_author")
         return distances, labels
 
-    def compute_sigmas(self, pairs=[], phase='train'):
+    def compute_sigmas(self, pairs=[], phase='dev'):
         if phase == "test":
             test_X, test_authors, test_titles = self.X_test, self.test_authors, self.test_titles
-            background_X, background_authors, background_titles = self.X_train, self.train_authors, self.train_titles
-        elif phase == "train":
-            test_X, test_authors, test_titles = self.X_train, self.train_authors, self.train_titles
-            background_X, background_authors, background_titles = self.X_train, self.train_authors, self.train_titles
+            background_X, background_authors, background_titles = self.X_dev, self.dev_authors, self.dev_titles
+        elif phase == "dev":
+            test_X, test_authors, test_titles = self.X_dev, self.dev_authors, self.dev_titles
+            background_X, background_authors, background_titles = self.X_dev, self.dev_authors, self.dev_titles
         sigmas, labels = [], []
         for k, (i, j) in enumerate(pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
@@ -254,28 +255,28 @@ class Verification(object):
             sigmas.append(sigma)
         return sigmas, labels
 
-    def _verification_without_sampling(self, train_pairs, test_pairs):
+    def _verification_without_sampling(self, dev_pairs, test_pairs):
         # compute distances plain distances between pairs without sampling:
-        train_dists, train_labels = self.compute_distances(train_pairs, phase="train")
+        dev_dists, dev_labels = self.compute_distances(dev_pairs, phase="dev")
         test_dists, test_labels = self.compute_distances(test_pairs, phase="test")
-        # scale the train and test distances together:
-        distances = train_dists + test_dists
+        # scale the dev and test distances together:
+        distances = dev_dists + test_dists
         min_dist, max_dist = min(distances), max(distances)
         scale = lambda d: (d - min_dist) / (max_dist - min_dist)
-        train_scores = zip(train_labels, map(scale, train_dists))
+        dev_scores = zip(dev_labels, map(scale, dev_dists))
         test_scores = zip(test_labels, map(scale, test_dists))
-        return train_scores, test_scores
+        return dev_scores, test_scores
 
-    def _verification_with_sampling(self, train_pairs, test_pairs):
-        train_sigmas, train_labels = self.compute_sigmas(train_pairs, phase="train")
+    def _verification_with_sampling(self, dev_pairs, test_pairs):
+        dev_sigmas, dev_labels = self.compute_sigmas(dev_pairs, phase="dev")
         test_sigmas, test_labels = self.compute_sigmas(test_pairs, phase="test")
-        train_scores = zip(train_labels, train_sigmas)
+        dev_scores = zip(dev_labels, dev_sigmas)
         test_scores = zip(test_labels, test_sigmas)
-        return train_scores, test_scores
+        return dev_scores, test_scores
 
     def get_distance_table(self, dists, pairs, phase):
-        if phase == 'train':
-            titles, authors = self.train_titles, self.train_authors
+        if phase == 'dev':
+            titles, authors = self.dev_titles, self.dev_authors
         elif phase == 'test':
             titles, authors = self.test_titles, self.test_authors
         textlabels = [a+"_"+t for a, t in zip(authors, titles)]
@@ -294,12 +295,12 @@ class Verification(object):
     def verify(self):
         "Start the verification procedure."
         # set the pairs:
-        self.train_pairs = self._setup_pairs(phase="train")
+        self.dev_pairs = self._setup_pairs(phase="dev")
         self.test_pairs = self._setup_pairs(phase="test")
         if self.sample_authors or self.sample_features:
-            self.train_scores, self.test_scores = self._verification_with_sampling(self.train_pairs, self.test_pairs)
+            self.dev_scores, self.test_scores = self._verification_with_sampling(self.dev_pairs, self.test_pairs)
         else:
-            self.train_scores, self.test_scores = self._verification_without_sampling(self.train_pairs, self.test_pairs)
-        self.train_dists, self.test_dists = [score for label, score in self.train_scores],\
+            self.dev_scores, self.test_scores = self._verification_without_sampling(self.dev_pairs, self.test_pairs)
+        self.dev_dists, self.test_dists = [score for label, score in self.dev_scores],\
                                             [score for label, score in self.test_scores]
-        return (self.train_scores, self.test_scores)
+        return (self.dev_scores, self.test_scores)
