@@ -9,6 +9,7 @@ def evaluate(results, beta=2):
     scores = np.array([score for _, score in results])
     scores = 1 - scores # highest similarity highest in rank
     precisions, recalls, thresholds = precision_recall_curve(y_true, scores)
+    precisions, recalls = precisions[:-1], recalls[:-1] # cut off 1
     f_scores = beta * (precisions * recalls) / (precisions + recalls)
     return f_scores, precisions, recalls, thresholds
 
