@@ -1,5 +1,6 @@
 import numpy as np
 import seaborn as sb
+from scipy.cluster.hierarchy import set_link_color_palette
 
 
 rc = {'axes.labelsize': 3, 'font.size': 3, 'legend.fontsize': 3.0,
@@ -44,8 +45,6 @@ def plot_test_results(f1_scores, thresholds, precisions, recalls,
                       dev_t, filename="test_curve.pdf", fontsize=7):
     fig = sb.plt.figure()
     c1, c2, c3, c4 = sb.color_palette("Set1")[:4]
-    #print len(scores)
-    #f1_scores, thresholds, precisions, recalls = zip(*scores)
     sb.plt.plot(thresholds, f1_scores, label="F1 score", c=c1)
     sb.plt.plot(thresholds, precisions, label="Precision", c=c2)
     sb.plt.plot(thresholds, recalls, label="Recall", c=c3)
@@ -56,4 +55,11 @@ def plot_test_results(f1_scores, thresholds, precisions, recalls,
     sb.plt.xlabel('Threshold', fontsize=fontsize)
     sb.plt.ylabel('Score', fontsize=fontsize)
     sb.plt.savefig(filename)
+    sb.plt.clf()
+
+def draw_tree(tree_df, label):
+    sb.set_palette('Set1', 10, 0.65)
+    sb.set_style('white')
+    sb.dendrogram(tree_df, rotate=True)
+    sb.plt.savefig("../plots/"+label+"_tree.pdf")
     sb.plt.clf()

@@ -8,6 +8,8 @@ from gensim.utils import tokenize
 from sklearn.cross_validation import train_test_split
 import numpy as np
 
+random_state = 1000
+
 Dataset = namedtuple('Dataset', ['texts', 'titles', 'authors'])
 
 def dummy_author():
@@ -22,12 +24,11 @@ def identity(x):
 DUMMY_AUTHORS = dummy_author()
 
 
-def analyzer(words, n=1):
+def ngram_analyzer(words, n=1):
     for word in words:
         if len(word) <= n:
             yield word
         else:
-            word = "%" + word + "*"
             for i in range(len(word) - n - 1):
                 yield word[i:i + n]
 
@@ -51,7 +52,7 @@ def split_corpus(data, controlled=True):
     if controlled:
         # easy author split:
         authors = list(set(data.authors))
-        np.random.RandomState(1000).shuffle(authors)
+        np.random.RandomState(random_state).shuffle(authors)
         uni_dev_authors, uni_test_authors = authors[:int(len(authors)/2)], authors[int(len(authors)/2):]
         dev_texts, dev_authors, dev_titles = [], [], []
         test_texts, test_authors, test_titles = [], [], []

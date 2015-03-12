@@ -1,29 +1,29 @@
-""" Experiment 1: Baseline experiment. """
+""" Experiment 3: Imposter setup """
 
 import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
                     level=logging.ERROR)
 
 import matplotlib
-matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import seaborn as sb
 import pandas as pd
 import numpy as np
-import numpy as np
 
 from verification.verification import Verification
+from verification.smooth import *
 from verification.evaluation import evaluate, evaluate_with_threshold
 from verification.preprocessing import prepare_corpus, split_corpus
 
 from supersmoother import SuperSmoother
 
-random_state = 1000
 data_path = "../data/"
 corpora = ["du_essays", "gr_articles", "sp_articles", "caesar_dev"]
 #corpora = ["du_essays"]
 n_experiments = 25
+random_state = 1000
 
 corpora_results = {}
 
@@ -41,27 +41,32 @@ for corpus in corpora:
     f1_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
     nf_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
 
-    for i, distance_metric in enumerate(['minmax', 'euclidean', 'cityblock']):
+    for i, distance_metric in enumerate(['minmax', 'cityblock', 'euclidean']):
         print("* "+distance_metric)
         f, ax = plt.subplots(1,1)
-        # we iterate over the vector space models:
+
         vsm_fscore_row = [distance_metric]
         vsm_nfeat_row = [distance_metric]
         for vsm in vsms:
             print("\t+ "+vsm)
             dev_f_scores, test_f_scores = [], []
             for n_features in feature_ranges:
-                #print "\t\t* Testing nr features: "+str(n_features)
+                print "\t\t* Testing nr features: "+str(n_features)
                 verifier = Verification(random_state=random_state,
                                         metric=distance_metric,
-                                        sample_authors=False,
-                                        sample_features=False,
+                                        sample_authors=True,
+                                        sample_iterations=100,
+                                        sample_features=True,
                                         n_features=n_features,
+                                        random_prop=0.5,
                                         n_test_pairs=250,
                                         n_dev_pairs=250,
                                         em_iterations=100,
                                         vector_space_model=vsm,
+                                        n_potential_imposters=60,
+                                        n_actual_imposters=10,
                                         weight=0.2,
+                                        top_rank=10,
                                         eps=0.01,
                                         norm="l2",
                                         balanced_pairs=True)
@@ -93,7 +98,6 @@ for corpus in corpora:
 
             sb.set_style("darkgrid")
             ax.set_ylim(.5, 1)
-
             sb.plt.plot(feature_ranges, dev_f_scores, label=vsm)
 
         f1_df.loc[i] = vsm_fscore_row
@@ -101,8 +105,9 @@ for corpus in corpora:
         # plot the results:
         sb.plt.title(distance_metric)
         sb.plt.legend(loc='best')
-        sb.plt.savefig("../plots/exp1_"+distance_metric+"_"+corpus+".pdf")
+        sb.plt.savefig("../plots/exp3_"+distance_metric+"_"+corpus+".pdf")
         sb.plt.clf()
+
     # set indices:
     f1_df = f1_df.set_index("distance_metric")
     nf_df = nf_df.set_index("distance_metric")
@@ -114,8 +119,6 @@ for corpus in corpora:
     # plot fscores:
     corpora_results[corpus+"_f-scores"] = f1_df
     corpora_results[corpus+"_n-features"] = nf_df
-    nf_df.to_csv("../plots/exp1_"+distance_metric+"_"+corpus+"_nf.csv")
-    f1_df.to_csv("../plots/exp1_"+distance_metric+"_"+corpus+"_f1.csv")
     print("=== f-scores ===")
     print str(f1_df.to_latex())
     print("=== n-features ===")

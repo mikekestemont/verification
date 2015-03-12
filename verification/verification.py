@@ -18,7 +18,7 @@ from sklearn.preprocessing import StandardScaler, Normalizer
 from gensim.utils import tokenize
 from sparse_plm import SparsePLM
 
-from preprocessing import analyzer, identity
+from preprocessing import ngram_analyzer, identity
 from distances import minmax, divergence, cityblock, cosine, euclidean
 from plotting import prec_recall_curve, plot_test_densities, plot_test_results
 
@@ -38,7 +38,7 @@ class DeltaWeightScaler(BaseEstimator):
             start, end = X.indptr[i], X.indptr[i+1]
             X.data[start:end] /= self.weights[X.indices[start:end]]
         # normalize to unit norm:
-        return Normalizer(norm="l2", copy=False).fit_transform(X)
+        return X
 
 pipelines = {
     'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
@@ -109,14 +109,13 @@ class Verification(object):
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
         transformer.fit(self.dev_data + self.test_data)
-        self.X_dev = transformer.transform(self.dev_data)
+        self.X_dev = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.dev_data))
         logging.info("Development corpus: n_samples=%s / n_features=%s" % (
             self.X_dev.shape))
-        self.X_test = transformer.transform(self.test_data)
+        self.X_test = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.test_data))
         logging.info("Test corpus: n_samples=%s / n_features=%s" % (
             self.X_test.shape))
         return self
-
 
     def _setup_pairs(self, phase='dev'):
         pairs = []
@@ -294,9 +293,10 @@ class Verification(object):
 
     def verify(self):
         "Start the verification procedure."
-        # set the pairs:
+
         self.dev_pairs = self._setup_pairs(phase="dev")
         self.test_pairs = self._setup_pairs(phase="test")
+
         if self.sample_authors or self.sample_features:
             self.dev_scores, self.test_scores = self._verification_with_sampling(self.dev_pairs, self.test_pairs)
         else:
