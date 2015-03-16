@@ -103,18 +103,28 @@ class Verification(object):
             self.parameters['plm__iterations'] = em_iterations
             self.parameters['plm__norm'] = norm
 
-    def fit(self, dev_dataset, test_dataset):
-        self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
-        self.test_data, self.test_titles, self.test_authors = test_dataset
+    def vectorize(self, dev_dataset=None, test_dataset=None):
+        # intialize:
+        self.dev_data, self.dev_titles, self.dev_authors = None, None, None
+        self.test_data, self.test_titles, self.test_authors = None, None, None
+        self.X_dev, self.X_test = None, None
+        # set pipeline:
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
-        transformer.fit(self.dev_data + self.test_data)
+        # fit:
+        if test_dataset:
+            self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
+            self.test_data, self.test_titles, self.test_authors = test_dataset
+            transformer.fit(self.dev_data + self.test_data)
+        else:
+            self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
+            transformer.fit(self.dev_data)
+        # transform:
         self.X_dev = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.dev_data))
-        logging.info("Development corpus: n_samples=%s / n_features=%s" % (
-            self.X_dev.shape))
-        self.X_test = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.test_data))
-        logging.info("Test corpus: n_samples=%s / n_features=%s" % (
-            self.X_test.shape))
+        logging.info("Development corpus: n_samples=%s / n_features=%s" % (self.X_dev.shape))
+        if test_dataset:
+            self.X_test = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.test_data))
+            logging.info("Test corpus: n_samples=%s / n_features=%s" % (self.X_test.shape))
         return self
 
     def _setup_pairs(self, phase='dev'):
@@ -171,16 +181,16 @@ class Verification(object):
 
     def compute_distances(self, pairs=[], phase='dev'):
         distances, labels = [], []
-        X = self.X_dev if phase == 'dev' else self.X_test
-        authors = self.dev_authors if phase == 'dev' else self.test_authors
+        if phase == "dev":
+            X, authors = self.X_dev, self.dev_authors
+        elif phase == "test":
+            X, authors = self.X_test, self.test_authors
         for k, (i, j) in enumerate(pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             dist = self.metric(X[i], X[j])
             assert not (np.isnan(dist) or np.isinf(dist))
             distances.append(dist)
-            labels.append(
-                "same_author" if authors[i] == authors[j] else
-                "diff_author")
+            labels.append("same_author" if authors[i] == authors[j] else "diff_author")
         return distances, labels
 
     def compute_sigmas(self, pairs=[], phase='dev'):
@@ -254,24 +264,38 @@ class Verification(object):
             sigmas.append(sigma)
         return sigmas, labels
 
-    def _verification_without_sampling(self, dev_pairs, test_pairs):
-        # compute distances plain distances between pairs without sampling:
-        dev_dists, dev_labels = self.compute_distances(dev_pairs, phase="dev")
-        test_dists, test_labels = self.compute_distances(test_pairs, phase="test")
-        # scale the dev and test distances together:
-        distances = dev_dists + test_dists
-        min_dist, max_dist = min(distances), max(distances)
-        scale = lambda d: (d - min_dist) / (max_dist - min_dist)
-        dev_scores = zip(dev_labels, map(scale, dev_dists))
-        test_scores = zip(test_labels, map(scale, test_dists))
-        return dev_scores, test_scores
+    def _verification_without_sampling(self, dev_pairs, test_pairs=None):
+        if not test_pairs:
+            # compute distances plain distances between pairs without sampling:
+            dev_dists, dev_labels = self.compute_distances(dev_pairs, phase="dev")
+            # scale the dev and test distances together:
+            distances = dev_dists
+            min_dist, max_dist = min(distances), max(distances)
+            scale = lambda d: (d - min_dist) / (max_dist - min_dist)
+            dev_scores = zip(dev_labels, map(scale, dev_dists))
+            return dev_scores
+        else:
+            dev_dists, dev_labels = self.compute_distances(dev_pairs, phase="dev")
+            test_dists, test_labels = self.compute_distances(test_pairs, phase="test")
+            # scale the dev and test distances together:
+            distances = dev_dists + test_dists
+            min_dist, max_dist = min(distances), max(distances)
+            scale = lambda d: (d - min_dist) / (max_dist - min_dist)
+            dev_scores = zip(dev_labels, map(scale, dev_dists))
+            test_scores = zip(test_labels, map(scale, test_dists))
+            return dev_scores, test_scores
 
-    def _verification_with_sampling(self, dev_pairs, test_pairs):
-        dev_sigmas, dev_labels = self.compute_sigmas(dev_pairs, phase="dev")
-        test_sigmas, test_labels = self.compute_sigmas(test_pairs, phase="test")
-        dev_scores = zip(dev_labels, dev_sigmas)
-        test_scores = zip(test_labels, test_sigmas)
-        return dev_scores, test_scores
+    def _verification_with_sampling(self, dev_pairs, test_pairs=None):
+        if not test_pairs:
+            dev_sigmas, dev_labels = self.compute_sigmas(dev_pairs, phase="dev")
+            dev_scores = zip(dev_labels, dev_sigmas)
+            return dev_scores
+        else:
+            dev_sigmas, dev_labels = self.compute_sigmas(dev_pairs, phase="dev")
+            test_sigmas, test_labels = self.compute_sigmas(test_pairs, phase="test")
+            dev_scores = zip(dev_labels, dev_sigmas)
+            test_scores = zip(test_labels, test_sigmas)
+            return dev_scores, test_scores
 
     def get_distance_table(self, dists, pairs, phase):
         if phase == 'dev':
@@ -291,12 +315,23 @@ class Verification(object):
         df.to_csv("../plots/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
         return df
 
-    def verify(self):
+    def fit(self):
         "Start the verification procedure."
+        self.dev_pairs = self._setup_pairs(phase="dev")
+        # check whether there are test pairs:
+        if self.sample_authors or self.sample_features:
+            self.dev_scores = self._verification_with_sampling(self.dev_pairs)
+        else:
+            self.dev_scores = self._verification_without_sampling(self.dev_pairs)
+        self.dev_dists = [score for label, score in self.dev_scores]
+        return self.dev_scores
 
+
+    def predict(self):
+        # note: function assumes that test material has been passed to vectorizer!
+        "Start the verification procedure."
         self.dev_pairs = self._setup_pairs(phase="dev")
         self.test_pairs = self._setup_pairs(phase="test")
-
         if self.sample_authors or self.sample_features:
             self.dev_scores, self.test_scores = self._verification_with_sampling(self.dev_pairs, self.test_pairs)
         else:
@@ -304,3 +339,5 @@ class Verification(object):
         self.dev_dists, self.test_dists = [score for label, score in self.dev_scores],\
                                             [score for label, score in self.test_scores]
         return (self.dev_scores, self.test_scores)
+
+
