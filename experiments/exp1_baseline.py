@@ -21,9 +21,11 @@ from supersmoother import SuperSmoother
 
 random_state = 1000
 data_path = "../data/"
-corpora = ["du_essays", "gr_articles", "sp_articles", "caesar_dev"]
-#corpora = ["du_essays"]
-n_experiments = 25
+#corpora = ["du_essays", "gr_articles", "sp_articles", "caesar_dev"]
+corpora = ["caesar_dev"]
+n_experiments = 5
+n_dev_pairs = 250
+n_test_pairs = n_dev_pairs
 
 corpora_results = {}
 
@@ -33,10 +35,10 @@ for corpus in corpora:
     logging.info("preparing corpus")
     X_dev, X_test = split_corpus(prepare_corpus(dev), controlled=True)
 
-    V = int(len(set(sum(X_dev.texts, []) + sum(X_test.texts, [])))/2.0)
+    V = int(len(set(sum(X_dev.texts, []) + sum(X_test.texts, [])))/5.0)
     feature_ranges = [int(x) for x in np.linspace(50, V, n_experiments)]
 
-    vsms = ('bin', 'std', 'plm', 'tf', 'tfidf')
+    vsms = ('std', 'tf', 'tfidf', 'bin', 'plm')
 
     f1_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
     nf_df = pd.DataFrame(columns=["distance_metric"]+list(vsms))
@@ -44,21 +46,23 @@ for corpus in corpora:
     for i, distance_metric in enumerate(['minmax', 'euclidean', 'cityblock']):
         print("* "+distance_metric)
         f, ax = plt.subplots(1,1)
+        sb.set_style("darkgrid")
+        ax.set_ylim(.5, 1)
         # we iterate over the vector space models:
         vsm_fscore_row = [distance_metric]
         vsm_nfeat_row = [distance_metric]
         for vsm in vsms:
             print("\t+ "+vsm)
-            dev_f_scores, test_f_scores = [], []
+            dev_f_scores = []
             for n_features in feature_ranges:
-                #print "\t\t* Testing nr features: "+str(n_features)
+                print "\t\t* Testing nr features: "+str(n_features)
                 verifier = Verification(random_state=random_state,
                                         metric=distance_metric,
                                         sample_authors=False,
                                         sample_features=False,
                                         n_features=n_features,
-                                        n_test_pairs=250,
-                                        n_dev_pairs=250,
+                                        n_test_pairs=n_test_pairs,
+                                        n_dev_pairs=n_dev_pairs,
                                         em_iterations=100,
                                         vector_space_model=vsm,
                                         weight=0.2,
@@ -66,35 +70,46 @@ for corpus in corpora:
                                         norm="l2",
                                         balanced_pairs=True)
                 logging.info("Starting verification [dev / test]")
-                verifier.fit(X_dev, X_test)
-                dev_results, test_results = verifier.verify()
-
+                verifier.vectorize(X_dev)
+                dev_results = verifier.fit()
                 logging.info("Computing results")
                 dev_f, dev_p, dev_r, dev_t = evaluate(dev_results)
+                f1 = np.nanmax(dev_f)
+                print "\t\t + F1: "+str(f1)
+                dev_f_scores.append(f1)
 
-                model = SuperSmoother()
-                model.fit(dev_t, dev_f)
-                smooth_dev_f = model.predict(dev_t)
 
-                dev_f_scores.append(np.nanmax(dev_f))
-                best_t = dev_t[np.nanargmax(smooth_dev_f)]
+            sb.plt.plot(feature_ranges, dev_f_scores, label=vsm)
+            # find optimum in smoothed scores:
+            model = SuperSmoother()
+            model.fit(feature_ranges, dev_f_scores)
+            smoothed_f1s = model.predict(feature_ranges)
+            best_n_features = feature_ranges[np.nanargmax(smoothed_f1s)]
 
-                test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
-                test_f_scores.append(test_f)
-
-            best_index = np.nanargmax(dev_f_scores)
-            best_n_features = feature_ranges[best_index]
             vsm_nfeat_row.append(best_n_features)
             print("\t\tbest n_features: "+str(best_n_features))
 
-            f_test = test_f_scores[best_index]
-            vsm_fscore_row.append(f_test)
-            print("\t\tF1-score: "+str(f_test))
-
-            sb.set_style("darkgrid")
-            ax.set_ylim(.5, 1)
-
-            sb.plt.plot(feature_ranges, dev_f_scores, label=vsm)
+            # refit the model:
+            verifier = Verification(random_state=random_state,
+                                    metric=distance_metric,
+                                    sample_authors=False,
+                                    sample_features=False,
+                                    n_features=best_n_features,
+                                    n_test_pairs=n_test_pairs,
+                                    n_dev_pairs=n_dev_pairs,
+                                    em_iterations=100,
+                                    vector_space_model=vsm,
+                                    weight=0.2,
+                                    eps=0.01,
+                                    norm="l2",
+                                    balanced_pairs=True)
+            verifier.vectorize(X_dev, X_test)
+            dev_results, test_results = verifier.predict()
+            dev_f, dev_p, dev_r, dev_t = evaluate(dev_results)
+            best_t = dev_t[np.nanargmax(dev_f)]
+            test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+            vsm_fscore_row.append(test_f)
+            print("\t\tF1-score: "+str(test_f))
 
         f1_df.loc[i] = vsm_fscore_row
         nf_df.loc[i] = vsm_nfeat_row
