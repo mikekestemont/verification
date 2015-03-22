@@ -199,7 +199,7 @@ class Verification(object):
             background_X, background_authors, background_titles = self.X_dev, self.dev_authors, self.dev_titles
         elif phase == "dev":
             test_X, test_authors, test_titles = self.X_dev, self.dev_authors, self.dev_titles
-            background_X, background_authors, background_titles = self.X_dev, self.dev_authors, self.dev_titles
+            background_X, background_authors, background_titles = self.X_test, self.test_authors, self.test_titles
         sigmas, labels = [], []
         for k, (i, j) in enumerate(pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
