@@ -40,16 +40,37 @@ class DeltaWeightScaler(BaseEstimator):
         # normalize to unit norm:
         return X
 
-pipelines = {
-    'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
-    'std': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False)),
-                     ('scaler', DeltaWeightScaler())]),
-    'tfidf': Pipeline([('tf', CountVectorizer(analyzer=identity)),
-                     ('tfidf', TfidfTransformer())]),
-    'plm': Pipeline([('tf', CountVectorizer(analyzer=identity)),
-                     ('plm', SparsePLM())]),
-    'bin': Pipeline([('tf', CountVectorizer(analyzer=identity, binary=True, dtype=np.float64))])
-}
+def get_pipelines(feature_type="", ngrams=3):
+    if feature_type = "words":
+        pipelines = {
+            'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
+            'std': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False)),
+                             ('scaler', DeltaWeightScaler())]),
+            'tfidf': Pipeline([('tf', CountVectorizer(analyzer=identity)),
+                             ('tfidf', TfidfTransformer())]),
+            'plm': Pipeline([('tf', CountVectorizer(analyzer=identity)),
+                             ('plm', SparsePLM())]),
+            'bin': Pipeline([('tf', CountVectorizer(analyzer=identity, binary=True, dtype=np.float64))])
+        }
+    elif feature_type == "chars":
+        pipelines = {
+            'tf': Pipeline([('tf', TfidfVectorizer(analyzer=partial(ngram_analyzer,
+                                                   n=ngrams), use_idf=False))]),
+            'std': Pipeline([('tf', TfidfVectorizer(analyzer=partial(ngram_analyzer,
+                                                   n=ngrams), use_idf=False)),
+                             ('scaler', DeltaWeightScaler())]),
+            'tfidf': Pipeline([('tf', CountVectorizer(analyzer=partial(ngram_analyzer,
+                                                   n=ngrams))),
+                             ('tfidf', TfidfTransformer())]),
+            'plm': Pipeline([('tf', CountVectorizer(analyzer=partial(ngram_analyzer,
+                                                   n=ngrams))),
+                             ('plm', SparsePLM())]),
+            'bin': Pipeline([('tf', CountVectorizer(analyzer=partial(ngram_analyzer,
+                                                   n=ngrams), binary=True, dtype=np.float64))])
+        }
+    else:
+        raise NotImplementedError("The feature type requested is not available...")
+    return pipelines
 
 distance_metrics = {
     "minmax": minmax,
@@ -67,7 +88,7 @@ class Verification(object):
                  n_actual_imposters=10, n_dev_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
                  ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
-                 balanced_pairs=False):
+                 balanced_pairs=False, feature_type="words"):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -91,7 +112,7 @@ class Verification(object):
         if balanced_pairs:
             self._setup_pairs = self._setup_balanced_pairs
         self.top_rank = top_rank
-
+        self.feature_type = feature_type
         self.parameters = {'tf__max_features': n_features,
                            'tf__ngram_range': ngram_range,
                            'tf__min_df': 2}
@@ -109,6 +130,7 @@ class Verification(object):
         self.test_data, self.test_titles, self.test_authors = None, None, None
         self.X_dev, self.X_test = None, None
         # set pipeline:
+        pipelines = get_pipelines(self.feature_type)
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
         # fit:
