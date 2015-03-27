@@ -41,7 +41,7 @@ class DeltaWeightScaler(BaseEstimator):
         return X
 
 def get_pipelines(feature_type="", ngrams=3):
-    if feature_type = "words":
+    if feature_type == "words":
         pipelines = {
             'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
             'std': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False)),
@@ -114,7 +114,6 @@ class Verification(object):
         self.top_rank = top_rank
         self.feature_type = feature_type
         self.parameters = {'tf__max_features': n_features,
-                           'tf__ngram_range': ngram_range,
                            'tf__min_df': 2}
         if self.vector_space_model == 'idf':
             self.parameters['tfidf__norm'] = norm
@@ -125,7 +124,7 @@ class Verification(object):
             self.parameters['plm__norm'] = norm
 
     def vectorize(self, dev_dataset=None, test_dataset=None):
-        # intialize:
+        # initialize:
         self.dev_data, self.dev_titles, self.dev_authors = None, None, None
         self.test_data, self.test_titles, self.test_authors = None, None, None
         self.X_dev, self.X_test = None, None
@@ -134,7 +133,7 @@ class Verification(object):
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
         # fit:
-        if test_dataset:
+        if test_dataset != None:
             self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
             self.test_data, self.test_titles, self.test_authors = test_dataset
             transformer.fit(self.dev_data + self.test_data)
@@ -215,22 +214,33 @@ class Verification(object):
             labels.append("same_author" if authors[i] == authors[j] else "diff_author")
         return distances, labels
 
-    def compute_sigmas(self, pairs=[], phase='dev'):
+    def compute_sigmas(self, pairs=[], phase='dev', filter_imposters=False):
+        # get the right right data to test on and sample imposters from:
         if phase == "test":
             test_X, test_authors, test_titles = self.X_test, self.test_authors, self.test_titles
             background_X, background_authors, background_titles = self.X_dev, self.dev_authors, self.dev_titles
         elif phase == "dev":
             test_X, test_authors, test_titles = self.X_dev, self.dev_authors, self.dev_titles
-            background_X, background_authors, background_titles = self.X_test, self.test_authors, self.test_titles
+            if self.X_test != None:
+                background_X, background_authors, background_titles = self.X_test, self.test_authors, self.test_titles
+            else:
+                background_X, background_authors, background_titles = test_X, test_authors, test_titles
+
+        # start the imposter-based verification:
         sigmas, labels = [], []
         for k, (i, j) in enumerate(pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             author_i, author_j = test_authors[i], test_authors[j]
-            background_sims = []
+
             # first, select n_potential_imposters
-            for k in range(background_X.shape[0]):
-                if "_" in background_titles[k]:
-                    xt = background_titles[k].split('_')[0]
+            background_sims = []
+
+            for b in range(background_X.shape[0]):
+                if filter_imposters:
+                    if background_authors[b] in (author_i, author_j):
+                        continue
+                if "_" in background_titles[b]:
+                    xt = background_titles[b].split('_')[0]
                     if "_" in test_titles[i]:
                         t1 = test_titles[i].split("_")[0]
                         if t1 == xt:
@@ -239,57 +249,71 @@ class Verification(object):
                         t2 = test_titles[j].split("_")[0]
                         if t2 == xt:
                             continue
-                background_sims.append((k, background_authors[k],
-                                       self.metric(test_X[i], background_X[k])))
-            background_sims.sort(key=lambda sim: sim[-1])            
+                background_sims.append((b, background_authors[b],
+                                       self.metric(test_X[i], background_X[b])))
+
+            background_sims.sort(key=lambda sim: sim[-1])
             indexes, imposters, _ = zip(*background_sims[:self.n_potential_imposters])
             X_imposters = background_X[list(indexes), :]
-            # start the iteration for the pairs:
+
+            # start the iteration for the pair:
             targets = 0.0
             for iteration in range(self.sample_iterations):
-                # randomly select imposters:
+
+                # randomly select actual imposters, if required:
                 if self.sample_authors:
-                    rnd_imposters = self.rnd.randint(
-                        X_imposters.shape[0], size=self.n_actual_imposters)
+                    rnd_imposters = self.rnd.randint(X_imposters.shape[0],
+                                                     size=self.n_actual_imposters)
                     X_truncated = X_imposters[rnd_imposters, :]
                 else:
                     X_truncated = X_imposters
-                # randomly select features:
+
+                # randomly select features, if required:
                 if self.sample_features:
-                    rnd_features = self.rnd.randint(
-                        X_truncated.shape[1], size=self.random_prop)
+                    rnd_features = self.rnd.randint(X_truncated.shape[1],
+                                                     size=self.random_prop)
                 else:
                     rnd_features = range(X_truncated.shape[1])
+
+                # get vector of source and target document:
                 vec_i, vec_j = test_X[i], test_X[j]
+
                 # compute distance to target doc:
                 all_candidates = [self.metric(vec_i, vec_j, rnd_features)]
+
                 # compute distance to imposters:
-                all_candidates += [self.metric(vec_i, X_truncated[k], rnd_features)
-                                   for k in range(self.n_actual_imposters)]
+                all_candidates += [self.metric(vec_i, X_truncated[s], rnd_features)
+                                           for s in range(self.n_actual_imposters)]
                 all_candidates = np.array(all_candidates)
+
                 # find rank of target doc in ranking:
                 rank_target = np.where(all_candidates.argsort() == 0)[0][0] + 1
+
+                # scoring:
                 if self.top_rank == 1:
                     # standard rank checking:
                     targets += 1.0 if rank_target == 1 else 0.0
                 else:
-                    # or a variation on mean reciprocal rank:
-                    if rank_target <= self.top_rank:
-                        targets += 1.0 / rank_target
+                    # or mean reciprocal rank:
+                    if rank_target <= (self.top_rank+1):
+                        targets += (1.0 / rank_target)
+
             # append the correct label:
             if author_i == author_j:
                 labels.append("same_author")
             else:
                 labels.append("diff_author")
+
             # append the sigma as a distance measure (1 - sigma)
-            sigma = 1 - targets / self.sample_iterations
+            sigma = 1 - (targets / self.sample_iterations)
             sigmas.append(sigma)
+
         return sigmas, labels
 
-    def _verification_without_sampling(self, dev_pairs, test_pairs=None):
-        if not test_pairs:
+    def _verification_without_sampling(self, dev_pairs=[], test_pairs=None):
+        if test_pairs == None:
             # compute distances plain distances between pairs without sampling:
-            dev_dists, dev_labels = self.compute_distances(dev_pairs, phase="dev")
+            dev_dists, dev_labels = self.compute_distances(pairs = dev_pairs, phase="dev")
             # scale the dev and test distances together:
             distances = dev_dists
             min_dist, max_dist = min(distances), max(distances)
@@ -307,14 +331,17 @@ class Verification(object):
             test_scores = zip(test_labels, map(scale, test_dists))
             return dev_scores, test_scores
 
-    def _verification_with_sampling(self, dev_pairs, test_pairs=None):
-        if not test_pairs:
-            dev_sigmas, dev_labels = self.compute_sigmas(dev_pairs, phase="dev")
+    def _verification_with_sampling(self, dev_pairs=[], test_pairs=None, filter_imposters=False):
+        if test_pairs == None:
+            dev_sigmas, dev_labels = self.compute_sigmas(pairs = dev_pairs, phase = "dev",
+                                                          filter_imposters = filter_imposters)
             dev_scores = zip(dev_labels, dev_sigmas)
             return dev_scores
         else:
-            dev_sigmas, dev_labels = self.compute_sigmas(dev_pairs, phase="dev")
-            test_sigmas, test_labels = self.compute_sigmas(test_pairs, phase="test")
+            dev_sigmas, dev_labels = self.compute_sigmas(pairs = dev_pairs, phase = "dev",
+                                                           filter_imposters = filter_imposters)
+            test_sigmas, test_labels = self.compute_sigmas(pairs = test_pairs, phase="test",
+                                                           filter_imposters = filter_imposters)
             dev_scores = zip(dev_labels, dev_sigmas)
             test_scores = zip(test_labels, test_sigmas)
             return dev_scores, test_scores
@@ -337,29 +364,33 @@ class Verification(object):
         df.to_csv("../plots/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
         return df
 
-    def fit(self):
+    def fit(self, filter_imposters = False):
         "Start the verification procedure."
         self.dev_pairs = self._setup_pairs(phase="dev")
-        # check whether there are test pairs:
         if self.sample_authors or self.sample_features:
-            self.dev_scores = self._verification_with_sampling(self.dev_pairs)
+            self.dev_scores = self._verification_with_sampling(dev_pairs=self.dev_pairs,\
+                                             filter_imposters=filter_imposters)
         else:
             self.dev_scores = self._verification_without_sampling(self.dev_pairs)
-        self.dev_dists = [score for label, score in self.dev_scores]
+        self.dev_dists = [sc for _, sc in self.dev_scores]
         return self.dev_scores
 
 
-    def predict(self):
-        # note: function assumes that test material has been passed to vectorizer!
+    def predict(self, filter_imposters = False):
         "Start the verification procedure."
-        self.dev_pairs = self._setup_pairs(phase="dev")
-        self.test_pairs = self._setup_pairs(phase="test")
+        self.dev_pairs = self._setup_pairs(phase = "dev")
+        self.test_pairs = self._setup_pairs(phase = "test")
         if self.sample_authors or self.sample_features:
-            self.dev_scores, self.test_scores = self._verification_with_sampling(self.dev_pairs, self.test_pairs)
+            self.dev_scores, self.test_scores = self._verification_with_sampling(
+                                                    dev_pairs = self.dev_pairs,
+                                                    test_pairs = self.test_pairs,
+                                                    filter_imposters = filter_imposters)
         else:
-            self.dev_scores, self.test_scores = self._verification_without_sampling(self.dev_pairs, self.test_pairs)
-        self.dev_dists, self.test_dists = [score for label, score in self.dev_scores],\
-                                            [score for label, score in self.test_scores]
+            self.dev_scores, self.test_scores = self._verification_without_sampling(
+                                                    dev_pairs = self.dev_pairs,
+                                                    test_pairs = self.test_pairs)
+        self.dev_dists = [sc for _, sc in self.dev_scores]
+        self.test_dists = [sc for _, sc in self.test_scores]
         return (self.dev_scores, self.test_scores)
 
 
