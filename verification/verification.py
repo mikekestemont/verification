@@ -128,10 +128,12 @@ class Verification(object):
         self.dev_data, self.dev_titles, self.dev_authors = None, None, None
         self.test_data, self.test_titles, self.test_authors = None, None, None
         self.X_dev, self.X_test = None, None
+
         # set pipeline:
         pipelines = get_pipelines(self.feature_type)
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
+
         # fit:
         if test_dataset != None:
             self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
@@ -140,22 +142,30 @@ class Verification(object):
         else:
             self.dev_data, self.dev_titles, self.dev_authors = dev_dataset
             transformer.fit(self.dev_data)
+
         # transform:
         self.X_dev = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.dev_data))
         logging.info("Development corpus: n_samples=%s / n_features=%s" % (self.X_dev.shape))
         if test_dataset:
             self.X_test = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.test_data))
             logging.info("Test corpus: n_samples=%s / n_features=%s" % (self.X_test.shape))
-        return self
+
+        # get feature probabilities:
+        self.word_p = self.X_dev
+        self.word_p[self.word_p > 0] = 1
+        self.word_p = self.word_p.sum(axis=0)
+        s = self.word_p.sum(axis=None)
+        self.word_p /= s
+        self.word_p = self.word_p[0,:].tolist()[0]
 
     def _setup_pairs(self, phase='dev'):
-        pairs = []
         if phase == "dev":
             titles, authors = self.dev_titles, self.dev_authors
             n_pairs = self.n_dev_pairs
         elif phase == "test":
             titles, authors = self.test_titles, self.test_authors
             n_pairs = self.n_test_pairs
+
         pairs = []
         for i in range(len(titles)):
             for j in range(len(titles)):
@@ -168,6 +178,7 @@ class Verification(object):
                         pairs.append((i, j))
                     else:
                         pairs.append((i, j))
+
         self.rnd.shuffle(pairs)
         if n_pairs == None:
             return pairs
@@ -180,6 +191,7 @@ class Verification(object):
         elif phase == 'test':
             titles, authors = self.test_titles, self.test_authors
             n_pairs = self.n_test_pairs
+
         same_author_pairs, diff_author_pairs = [], []
         for i in range(len(titles)):
             for j in range(len(titles)):
@@ -192,26 +204,31 @@ class Verification(object):
                         same_author_pairs.append((i, j))
                     else:
                         diff_author_pairs.append((i, j))
+
         self.rnd.shuffle(same_author_pairs)
         self.rnd.shuffle(diff_author_pairs)
         same_author_pairs = same_author_pairs[:int(n_pairs / 2.0)]
         diff_author_pairs = diff_author_pairs[:len(same_author_pairs)]
+
         pairs = same_author_pairs + diff_author_pairs
         self.rnd.shuffle(pairs) # needed for proportional evaluation
         return pairs
 
     def compute_distances(self, pairs=[], phase='dev'):
         distances, labels = [], []
+
         if phase == "dev":
             X, authors = self.X_dev, self.dev_authors
         elif phase == "test":
             X, authors = self.X_test, self.test_authors
+
         for k, (i, j) in enumerate(pairs):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             dist = self.metric(X[i], X[j])
             assert not (np.isnan(dist) or np.isinf(dist))
             distances.append(dist)
             labels.append("same_author" if authors[i] == authors[j] else "diff_author")
+
         return distances, labels
 
     def compute_sigmas(self, pairs=[], phase='dev', filter_imposters=False):
@@ -270,8 +287,12 @@ class Verification(object):
 
                 # randomly select features, if required:
                 if self.sample_features:
-                    rnd_features = self.rnd.randint(X_truncated.shape[1],
-                                                     size=self.random_prop)
+                    #rnd_features = self.rnd.randint(X_truncated.shape[1],
+                    #                                 size=self.random_prop)
+                    rnd_features = self.rnd.choice(X_truncated.shape[1],
+                                                size=self.random_prop,
+                                                replace=False,
+                                                p=self.word_p)
                 else:
                     rnd_features = range(X_truncated.shape[1])
 
@@ -313,7 +334,7 @@ class Verification(object):
     def _verification_without_sampling(self, dev_pairs=[], test_pairs=None):
         if test_pairs == None:
             # compute distances plain distances between pairs without sampling:
-            dev_dists, dev_labels = self.compute_distances(pairs = dev_pairs, phase="dev")
+            dev_dists, dev_labels = self.compute_distances(pairs=dev_pairs, phase="dev")
             # scale the dev and test distances together:
             distances = dev_dists
             min_dist, max_dist = min(distances), max(distances)
@@ -333,15 +354,15 @@ class Verification(object):
 
     def _verification_with_sampling(self, dev_pairs=[], test_pairs=None, filter_imposters=False):
         if test_pairs == None:
-            dev_sigmas, dev_labels = self.compute_sigmas(pairs = dev_pairs, phase = "dev",
-                                                          filter_imposters = filter_imposters)
+            dev_sigmas, dev_labels = self.compute_sigmas(pairs=dev_pairs, phase="dev",
+                                                         filter_imposters=filter_imposters)
             dev_scores = zip(dev_labels, dev_sigmas)
             return dev_scores
         else:
-            dev_sigmas, dev_labels = self.compute_sigmas(pairs = dev_pairs, phase = "dev",
-                                                           filter_imposters = filter_imposters)
-            test_sigmas, test_labels = self.compute_sigmas(pairs = test_pairs, phase="test",
-                                                           filter_imposters = filter_imposters)
+            dev_sigmas, dev_labels = self.compute_sigmas(pairs=dev_pairs, phase="dev",
+                                                         filter_imposters=filter_imposters)
+            test_sigmas, test_labels = self.compute_sigmas(pairs=test_pairs, phase="test",
+                                                           filter_imposters=filter_imposters)
             dev_scores = zip(dev_labels, dev_sigmas)
             test_scores = zip(test_labels, test_sigmas)
             return dev_scores, test_scores
@@ -367,11 +388,13 @@ class Verification(object):
     def fit(self, filter_imposters = False):
         "Start the verification procedure."
         self.dev_pairs = self._setup_pairs(phase="dev")
+
         if self.sample_authors or self.sample_features:
             self.dev_scores = self._verification_with_sampling(dev_pairs=self.dev_pairs,\
-                                             filter_imposters=filter_imposters)
+                                                       filter_imposters=filter_imposters)
         else:
             self.dev_scores = self._verification_without_sampling(self.dev_pairs)
+
         self.dev_dists = [sc for _, sc in self.dev_scores]
         return self.dev_scores
 
@@ -380,6 +403,7 @@ class Verification(object):
         "Start the verification procedure."
         self.dev_pairs = self._setup_pairs(phase = "dev")
         self.test_pairs = self._setup_pairs(phase = "test")
+
         if self.sample_authors or self.sample_features:
             self.dev_scores, self.test_scores = self._verification_with_sampling(
                                                     dev_pairs = self.dev_pairs,
@@ -389,6 +413,7 @@ class Verification(object):
             self.dev_scores, self.test_scores = self._verification_without_sampling(
                                                     dev_pairs = self.dev_pairs,
                                                     test_pairs = self.test_pairs)
+
         self.dev_dists = [sc for _, sc in self.dev_scores]
         self.test_dists = [sc for _, sc in self.test_scores]
         return (self.dev_scores, self.test_scores)
