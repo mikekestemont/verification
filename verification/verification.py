@@ -88,7 +88,7 @@ class Verification(object):
                  n_actual_imposters=10, n_dev_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
                  ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
-                 balanced_pairs=False, feature_type="words"):
+                 balanced_pairs=False, feature_type="words", control_pairs=True):
 
         self.n_features = n_features
         self.random_prop = int(random_prop * n_features)
@@ -104,6 +104,7 @@ class Verification(object):
             self.n_actual_imposters = n_potential_imposters
         self.n_dev_pairs = n_dev_pairs
         self.n_test_pairs = n_test_pairs
+        self.control_pairs = control_pairs
         self.vector_space_model = vector_space_model
         self.weight = weight
         self.em_iterations = em_iterations
@@ -150,14 +151,6 @@ class Verification(object):
             self.X_test = Normalizer(norm="l2", copy=False).fit_transform(transformer.transform(self.test_data))
             logging.info("Test corpus: n_samples=%s / n_features=%s" % (self.X_test.shape))
 
-        # get feature probabilities:
-        self.word_p = self.X_dev
-        self.word_p[self.word_p > 0] = 1
-        self.word_p = self.word_p.sum(axis=0)
-        s = self.word_p.sum(axis=None)
-        self.word_p /= s
-        self.word_p = self.word_p[0,:].tolist()[0]
-
     def _setup_pairs(self, phase='dev'):
         if phase == "dev":
             titles, authors = self.dev_titles, self.dev_authors
@@ -171,13 +164,11 @@ class Verification(object):
             for j in range(len(titles)):
                 if i != j:
                     title_i, title_j = titles[i], titles[j]
-                    if "_" in title_i and "_" in title_j:
-                        if title_i.split("_")[0] == title_j.split('_')[0]:
-                            continue
-                    if authors[i] == authors[j]:
-                        pairs.append((i, j))
-                    else:
-                        pairs.append((i, j))
+                    if self.control_pairs:
+                        if "_" in title_i and "_" in title_j:
+                            if title_i.split("_")[0] == title_j.split('_')[0]:
+                                continue
+                    pairs.append((i, j))
 
         self.rnd.shuffle(pairs)
         if n_pairs == None:
@@ -196,10 +187,11 @@ class Verification(object):
         for i in range(len(titles)):
             for j in range(len(titles)):
                 if i != j:
-                    title_i, title_j = titles[i], titles[j]
-                    if "_" in title_i and "_" in title_j:
-                        if title_i.split("_")[0] == title_j.split('_')[0]:
-                            continue
+                    if self.control_pairs:
+                        title_i, title_j = titles[i], titles[j]
+                        if "_" in title_i and "_" in title_j:
+                            if title_i.split("_")[0] == title_j.split('_')[0]:
+                                continue
                     if authors[i] == authors[j]:
                         same_author_pairs.append((i, j))
                     else:
@@ -249,6 +241,9 @@ class Verification(object):
             logging.info("Verifying pair %s / %s" % (k+1, len(pairs)))
             author_i, author_j = test_authors[i], test_authors[j]
 
+            title_i, title_j = test_titles[i], test_titles[j]
+            logging.debug("pair: "+author_i +" / "+title_i+
+                " vs "+author_j+" / "+title_j)
             # first, select n_potential_imposters
             background_sims = []
 
@@ -273,6 +268,8 @@ class Verification(object):
             indexes, imposters, _ = zip(*background_sims[:self.n_potential_imposters])
             X_imposters = background_X[list(indexes), :]
 
+            logging.debug(str([background_titles[f] for f in indexes]))
+
             # start the iteration for the pair:
             targets = 0.0
             for iteration in range(self.sample_iterations):
@@ -287,12 +284,8 @@ class Verification(object):
 
                 # randomly select features, if required:
                 if self.sample_features:
-                    #rnd_features = self.rnd.randint(X_truncated.shape[1],
-                    #                                 size=self.random_prop)
-                    rnd_features = self.rnd.choice(X_truncated.shape[1],
-                                                size=self.random_prop,
-                                                replace=False,
-                                                p=self.word_p)
+                    rnd_features = self.rnd.randint(X_truncated.shape[1],
+                                                     size=self.random_prop)
                 else:
                     rnd_features = range(X_truncated.shape[1])
 
@@ -315,6 +308,7 @@ class Verification(object):
                     # standard rank checking:
                     targets += 1.0 if rank_target == 1 else 0.0
                 else:
+                    logging.debug("rank target: "+str(rank_target))
                     # or mean reciprocal rank:
                     if rank_target <= (self.top_rank+1):
                         targets += (1.0 / rank_target)
@@ -327,6 +321,7 @@ class Verification(object):
 
             # append the sigma as a distance measure (1 - sigma)
             sigma = 1 - (targets / self.sample_iterations)
+            #logging.debug("sigma: "+str(sigma))
             sigmas.append(sigma)
 
         return sigmas, labels
@@ -388,7 +383,7 @@ class Verification(object):
     def fit(self, filter_imposters = False):
         "Start the verification procedure."
         self.dev_pairs = self._setup_pairs(phase="dev")
-
+        
         if self.sample_authors or self.sample_features:
             self.dev_scores = self._verification_with_sampling(dev_pairs=self.dev_pairs,\
                                                        filter_imposters=filter_imposters)
