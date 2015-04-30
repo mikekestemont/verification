@@ -1,0 +1,33 @@
++ Materials and Methods
+
+*Task definition
+
+* Materials
+For this study we have compiled a representative development corpus, containing works by some of the main Latin prose authors from Classical Antiquity, such Cicero, Seneca or Suetonius. They include a number of historiographical texts (e.g. Livy's Ab Urbe Condita [is there a better example, Justin?]) which might be sufficiently similar to Caesar's War Commentaries to serve as suitable impostors in the experiments below. We will test the performance of the verification systems below on this development data: all hyperparameters of the systems presented will be finetuned on the development set before moving on to the actual test case. Table ** offers an overview of the texts included in the corpus and offers meta data about text size or development-test splits (as described in more detail below).
+
+To tokenize texts, we adopt a pragmatic definition of a word token in this study as a space-free string of lowercase alphabetic characters. All instances of j and u have been replaced by i and v respectively, to account for the orthographic artefacts of classical Latin. To obtain documents of an equal size, we have divided all original texts in consecutive, non-overlapping slices of 1000 words (counted after tokenization). We will treat these as individual documents, although samples from the same texts will never be paired to form SADPs in the experiments, in order to avoid too obvious content-related similarities. works. The development and test corpus have been preprocessed in the exact same way. While 1000 words is a challengingly limited document size, this procedure will allow us to obtain a sufficiently fine-grained analysis of the Caesarian corpus. For modern documents, promising results are increasingly obtained with small document sizes (Koppel).
+
+In this study we will experiment with two types of commonly used features in computational authorship studies: word-level unigrams and character n-grams. While a variety of other feature types have been explored in the literature, these so-called "shallow" linguistic features have shown excellent performance across studies and data sets. These features are easy to extract from texts and their surplus value has been theoretically argued in the literature (Daelemans, Kestemont). Especially for character n-grams, the performance seems to be largely language-independent. Following Koppel and Winter (****), we will restrict our character n-grams to tetragrams (4-grams), which can be defined as: (a) any space-free character slice of length 4, or (b) each word with a character length <= 4 (after tokenization). We only extracted 4-grams from individual words, and not across word boundaries to battle feature sparsity in the data set. Additionally, we encode the beginning (%) and ending ($) of words with a special character. From the word 'tetragram', our system would therefore extract the following n-grams: "%tet", "tetr", "etra", "trag", "ragr", "agra", "gram", "ram$".
+
+*Methods
+* Vector spaces and distance metrics
+We will report experiments using two authentication methods which both firmly rely on the combination of (i) a vector space model, used to efficiently represent texts in a geometric space, and (ii) a distance metric, used to estimate a pairwise distance between two documents in the geometric space defined by the vector space model. The first vector model we consider is the simple term-frequency model (tf), which records the relative frequency of the indidual terms in a document in some fixed order. The second model (std) we consider weighs the tf-model by scaling a relative term frequency in a document with the standard deviation in the term's relative frequency across the entire document collection. The third model which we will consider is the well-known "term frequency-inverse document" frequency model (tfidf) from Information Retrieval (Manning et al.): this model scales the tf-model by taking the ratio of a term's relative frequency and its inverse document frequency (in the entire collection), after which a logarithmic function is applied. All these vector models are "bag-of-words" representations of documents (Sebastiani), in that they ignore the exact order of terms in documents. Because the documents in the experiments are relatively short (1000 words), the document vectors in our experiments will display a considerable sparsity.
+
+truncation vocab 
+
+distance metrics
+
+
+All our vector space models and distance metrics can be freely combined and can take either word unigrams or character tetragrams as input. Some of the combinations presented below are commonly used in authorship research (Stamatatos); the combination of a Manhattan cityblock distance with an std-scaled vector space, for instance, is mathematically equivalent to Burrows's popular Delta metric (Burrows, Argamon). The use of the minmax distance metric, as well as are more recently introduced, yet highly successful additions to authentication studies (PAN etc.).
+
+* Pairwise method
+
+* Impostors method
+
+
+
++ Results
+
+
+
+
