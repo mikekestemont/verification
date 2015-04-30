@@ -22,13 +22,14 @@ def identity(x):
 DUMMY_AUTHORS = dummy_author()
 
 
-def ngram_analyzer(words, n=1):
+def ngram_analyzer(words, n=4):
     for word in words:
         if len(word) <= n:
-            yield word
+            yield "%"+word+"$"
         else:
-            for i in range(len(word) - n - 1):
-                yield word[i:i + n]
+            word = "%"+word+"$"
+            for i in range(len(word)-n-1):
+                yield word[i:i+n]
 
 def prepare_corpus(dirname, text_cutoff=1000000):
     underscore = re.compile(r'\_')
