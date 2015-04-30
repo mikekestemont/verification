@@ -40,7 +40,7 @@ class DeltaWeightScaler(BaseEstimator):
         # normalize to unit norm:
         return X
 
-def get_pipelines(feature_type="", ngrams=3):
+def get_pipelines(feature_type="", ngrams=4):
     if feature_type == "words":
         pipelines = {
             'tf': Pipeline([('tf', TfidfVectorizer(analyzer=identity, use_idf=False))]),
@@ -87,10 +87,11 @@ class Verification(object):
                  sample_iterations=10, n_potential_imposters=30,
                  n_actual_imposters=10, n_dev_pairs=None, n_test_pairs=None, random_state=None,
                  vector_space_model='std', weight=0.1, em_iterations=10,
-                 ngram_range=(1, 1), norm='l2', top_rank=1, eps=0.01,
+                 ngram_range=4, norm='l2', top_rank=1, eps=0.01,
                  balanced_pairs=False, feature_type="words", control_pairs=True):
 
         self.n_features = n_features
+        self.ngram_range = ngram_range
         self.random_prop = int(random_prop * n_features)
         self.sample_features = sample_features
         self.sample_authors = sample_authors
@@ -131,7 +132,7 @@ class Verification(object):
         self.X_dev, self.X_test = None, None
 
         # set pipeline:
-        pipelines = get_pipelines(self.feature_type)
+        pipelines = get_pipelines(self.feature_type, self.ngram_range)
         transformer = pipelines[self.vector_space_model]
         transformer.set_params(**self.parameters)
 
@@ -377,7 +378,7 @@ class Verification(object):
             df.ix[i,j+1] = d
         # save:
         df = df.set_index("id")
-        df.to_csv("../plots/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
+        df.to_csv("../outputs/"+phase+"_dists.txt", sep="\t", encoding="utf-8")
         return df
 
     def fit(self, filter_imposters = False):
