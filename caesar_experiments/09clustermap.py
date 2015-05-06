@@ -31,53 +31,41 @@ from verification.preprocessing import prepare_corpus, Dataset
 from sklearn.cross_validation import train_test_split
 import numpy as np
 import pandas as pd
-"""
+
 # select a data set
 dev = "../data/caesar_dev"
 test = "../data/caesar_test"
 
 # we prepare the corpus
 logging.info("preparing corpus")
-X_dev = prepare_corpus(dev)
+X_dev = prepare_corpus(test)
 X_test = prepare_corpus(test)
 
-#best_feats_df = pd.read_csv("../plots/caesar_nf.csv")
-#best_feats_df = best_feats_df.set_index("distance metric")
-#print(best_feats_df)
 
-dm = 'cityblock'
+dm = 'minmax'
 vsm = 'tf'
 
 print dm
 print vsm
-#print best_feats_df.loc[dm,vsm]
+
 verifier = Verification(random_state=1000,
-                        sample_features=True,
                         metric=dm,
-                        sample_authors=True,
-                        sample_iterations=100,
-                        n_features=10000, # based on optimal training F1
-                        n_dev_pairs=2,
-                        n_test_pairs=100000,
-                        em_iterations=100,
-                        random_prop=0.5,
+                        n_features=10000,
+                        n_dev_pairs=0,
+                        n_test_pairs=99999999,
                         vector_space_model=vsm,
-                        weight=0.2,
-                        n_actual_imposters=10,
-                        n_potential_imposters=60,
-                        eps=0.01,
-                        norm="l2",
-                        top_rank=10,
-                        balanced_pairs=False)
+                        balanced_pairs=False,
+                        control_pairs=False)
+
 logging.info("Starting verification [train / test]")
-verifier.fit(X_dev, X_test)
-train_results, test_results = verifier.verify()
+verifier.vectorize(X_dev, X_test)
+train_results, test_results = verifier.predict(filter_imposters=False)
 logging.info("Computing results")
 
 test_df = verifier.get_distance_table(verifier.test_dists, verifier.test_pairs, "test")
-test_df.to_csv("../plots/caesar_test.csv")
-"""
-test_df = pd.read_csv("../plots/caesar_test.csv")
+test_df.to_csv("../outputs/caesar_test.csv")
+
+test_df = pd.read_csv("../outputs/caesar_test.csv")
 test_df = test_df.set_index("id")
 test_df = test_df.applymap(lambda x:int(x*1000)).corr()
 
@@ -87,7 +75,7 @@ ax = sb.plt.gca()
 for label in (ax.get_xticklabels() + ax.get_yticklabels()):
     label.set_fontname('Arial')
     label.set_fontsize(3)
-sb.plt.savefig("../plots/caesar_imposter_heatmap.pdf")
+sb.plt.savefig("../outputs/caesar_imposter_heatmap.pdf")
 sb.plt.clf()
 
 # clustermap plotting:
@@ -96,4 +84,4 @@ ax = g.ax_heatmap
 for label in (ax.get_xticklabels() + ax.get_yticklabels()):
     label.set_fontname('Arial')
     label.set_fontsize(3)
-g.savefig("../plots/caesar_imposter_clustermap.pdf")
+g.savefig("../outputs/caesar_imposter_clustermap.pdf")
