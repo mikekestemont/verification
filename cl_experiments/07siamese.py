@@ -1,6 +1,6 @@
 import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                    level=logging.INFO)
+                    level=logging.WARNING)
 
 import matplotlib
 matplotlib.use('Agg') # Must be before importing matplotlib.pyplot or pylab!
@@ -10,6 +10,7 @@ import seaborn as sb
 import pandas as pd
 import numpy as np
 from scipy.stats import ks_2samp
+import scipy.sparse as sp
 
 from verification.verification import Verification
 from verification.evaluation import evaluate, evaluate_with_threshold
@@ -18,14 +19,14 @@ from verification.preprocessing import prepare_corpus, split_corpus
 random_state = 1000
 data_path = "../data/"
 corpus = "du_essays"
-n_pairs = 1000
-n_features = 5000
+n_pairs = 10000
+n_features = 1000
 
 logging.info("preparing corpus")
 X_dev, X_test = split_corpus(prepare_corpus(data_path+corpus), controlled="authors", random_state=random_state)
 
 verifier = Verification(random_state=random_state,
-                        metric="cityblock",
+                        metric="euclidean",
                         feature_type="words",
                         sample_authors=False,
                         sample_features=False,
@@ -100,17 +101,46 @@ print "=============="
 ""
 model = Sequential()
 model.add(Scaler(input_dim, init='uniform'))
-model.add(Activation('relu'))
+model.add(Activation('linear'))
 #model.add(Dropout(0.5))
 
-sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True, l2=0.5)
-model.compile(loss='siamese_euclidean', sgd)
+sgd = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True, l2=0.9)
+model.compile(loss='siamese_euclidean', optimizer=sgd)
 
-model.fit(X_test, y_test, nb_epoch=10000, batch_size=2, validation_split=0.0, show_accuracy=True)
-print ":::::::::::"
-classes = model.predict_classes(X_test, batch_size=2)
-print classes
-acc = np_utils.accuracy(classes, y_test)
+for e in range(100):
+    print("epoch", e)
+    model.fit(X_dev, y_dev, nb_epoch=1, batch_size=2, validation_split=0.0, show_accuracy=False)
+    print ":::::::::::"
+
+    new_weights = np.array(list(model.params[0].get_value()))
+
+    print type(verifier.X_dev)
+    print verifier.X_dev.shape
+
+    verifier.X_dev = verifier.X_dev.toarray()
+    verifier.X_dev = verifier.X_dev * new_weights
+    verifier.X_dev = sp.csr_matrix(verifier.X_dev, dtype=np.float64)
+
+    verifier.X_test = verifier.X_test.toarray()
+    verifier.X_test = verifier.X_test * new_weights
+    verifier.X_test = sp.csr_matrix(verifier.X_test, dtype=np.float64)
+
+    dev_results, test_results = verifier.predict()
+    logging.info("Computing results")
+
+    dev_Fs, dev_Ps, dev_Rs, dev_Ts = evaluate(dev_results)
+    best_t = dev_Ts[np.nanargmax(dev_Fs)]
+    new_test_f, test_p, test_r = evaluate_with_threshold(dev_results, t=best_t)
+    print "New Train F1: "+str(new_test_f)
+
+    # first prec rec curve of test results:
+    test_Fs, test_Ps, test_Rs, test_Ts = evaluate(test_results)
+    # get max 
+    dev_Fs, dev_Ps, dev_Rs, dev_Ts = evaluate(test_results)
+    best_t = dev_Ts[np.nanargmax(dev_Fs)]
+    new_test_f, test_p, test_r = evaluate_with_threshold(test_results, t=best_t)
+    print "Baseline F1: "+str(baseline_test_f)
+    print "New F1: "+str(new_test_f)
 
 """ #werkt!
 model = Sequential()
